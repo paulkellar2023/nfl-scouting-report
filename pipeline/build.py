@@ -174,6 +174,10 @@ def main():
     idx_path = site / "data" / "index.json"
     idx = json.loads(idx_path.read_text()) if idx_path.exists() else {"weeks": []}
     weeks = [w for w in idx.get("weeks", []) if not (w["season"] == args.season and w["week"] == week)]
+    if not raw.get("synthetic"):
+        for w in [w for w in weeks if w.get("synthetic")]:
+            shutil.rmtree(site / "data" / str(w["season"]) / f"wk{w['week']:02d}", ignore_errors=True)
+        weeks = [w for w in weeks if not w.get("synthetic")]
     weeks.append({"season": args.season, "week": week, "built": built, "synthetic": bool(raw.get("synthetic")),
                   "games": len(board)})
     weeks.sort(key=lambda w: (w["season"], w["week"]))
