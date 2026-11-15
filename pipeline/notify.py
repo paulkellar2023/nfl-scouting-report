@@ -20,7 +20,7 @@ def _tag_filter(tag):
 
 def _team_body(d, team, teams):
     a, h = d["away"], d["home"]
-    link = f"{SITE_URL}#/{d['season']}/{d['week']}/{d['id']}"
+    link = f"{SITE_URL}g/{d['id']}.html"
     lines = [f"**{teams[a]['name']} at {teams[h]['name']}** · {d['kickoff']}"]
     if d.get("line"):
         lines.append(f"Line: {d['line']['text']}")
@@ -43,7 +43,7 @@ def _digest_body(docs, week, teams):
     lines = [f"Week {week} matchups, ordered by playoff leverage.", ""]
     for d in docs:
         a, h = d["away"], d["home"]
-        link = f"{SITE_URL}#/{d['season']}/{d['week']}/{d['id']}"
+        link = f"{SITE_URL}g/{d['id']}.html"
         first = (d.get("summary") or "").split(". ")[0].rstrip(".")
         lines.append(f"- **[{teams[a]['nick']} at {teams[h]['nick']}]({link})** · {d.get('line', {}) and d['line']['text'] or ''}"
                      + (f"  \n  {first}." if first else ""))

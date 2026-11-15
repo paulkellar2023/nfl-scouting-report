@@ -10,7 +10,8 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-from . import assets, clean, context, feeds, health, leverage, model, model_cards, notify, stats, story, summary, templates_player, templates_team
+from . import (assets, clean, context, feeds, health, league, leverage, model, model_cards, notify, record, share, stats, story,
+               summary, templates_player, templates_team)
 from .text import agree
 from .config import BUTTONDOWN_USERNAME, GOATCOUNTER_CODE, MODEL_FIRST_SEASON, SITE_URL
 from .config import (HANDLE, MAX_PLAYER_CARDS, MAX_TEAM_CARDS, MIN_PLAYER_CARDS, MIN_TEAM_CARDS,
@@ -145,6 +146,7 @@ def main():
     e = plays[plays["eff"]]
     o_all, d_all = stats.opp_adjust(e, "epa")
     lev = leverage.simulate(sched, M, week, leverage.ratings(o_all, d_all))
+    lev_teams = lev.pop("_teams", {})
 
     site = Path(args.site)
     wdir = site / "data" / str(args.season) / f"wk{week:02d}"
@@ -166,12 +168,13 @@ def main():
     now = dt.datetime.now(dt.timezone.utc)
     built = dt.datetime.now(dt.timezone.utc).strftime("%Y-%m-%dT%H:%MZ")
     span = f"Weeks 1-{week - 1}, {args.season}" if week > 2 else f"Week 1, {args.season}"
-    board = []
+    board, docs = [], []
     for _, g in games.iterrows():
         a_, h_ = g.away_team, g.home_team
         started = kicked_off(g, now)
         if started and not args.refresh_started and g.game_id in prev_doc and g.game_id in prev_tile:
             _write(wdir / f"{g.game_id}.json", prev_doc[g.game_id])
+            docs.append(prev_doc[g.game_id])
             board.append(prev_tile[g.game_id])
             log.info("kept pre-kickoff report for %s", g.game_id)
             sum_counts["kept"] += 1
@@ -257,6 +260,7 @@ def main():
                           "summary": agree(model_cards.summary(mp, M), plurals)} if mp else None),
                "model_cards": mcards}
         _write(wdir / f"{g.game_id}.json", doc)
+        docs.append(doc)
         board.append({"id": g.game_id, "away": a_, "home": h_, "kickoff": kickoff(g), "primetime": prime,
                       "line": ln, "leverage": lv["leverage"], "heat": heat, "ko": f"{g.gameday}T{g.gametime}",
                       "model": {"p_home": mp["p_home"], "mkt": mp["market"]["p_home"]} if mp else None,
@@ -265,7 +269,7 @@ def main():
                       "tease_owner": team_cards[0]["owner"] if team_cards else None})
     board.sort(key=lambda x: -x["rank"])
     if mmeta:
-        _write(wdir / "model_meta.json", mmeta)
+        _write(wdir / "model_meta.json", {k: v for k, v in mmeta.items() if k != "season_walk"})
     _write(wdir / "games.json", {"season": args.season, "week": week, "built": built, "span": span,
                                  "synthetic": bool(raw.get("synthetic")), "flags": flags, "games": board})
     _write(site / "data" / "teams.json", M)
@@ -274,7 +278,11 @@ def main():
     weeks = [w for w in idx.get("weeks", []) if not (w["season"] == args.season and w["week"] == week)]
     if not raw.get("synthetic"):
         for w in [w for w in weeks if w.get("synthetic")]:
-            shutil.rmtree(site / "data" / str(w["season"]) / f"wk{w['week']:02d}", ignore_errors=True)
+            sdir = site / "data" / str(w["season"]) / f"wk{w['week']:02d}"
+            for f in sdir.glob(f"{w['season']}_*.json"):
+                (site / "og" / f"{f.stem}.png").unlink(missing_ok=True)
+                (site / "g" / f"{f.stem}.html").unlink(missing_ok=True)
+            shutil.rmtree(sdir, ignore_errors=True)
         weeks = [w for w in weeks if not w.get("synthetic")]
     weeks.append({"season": args.season, "week": week, "built": built, "synthetic": bool(raw.get("synthetic")),
                   "games": len(board)})
@@ -282,6 +290,16 @@ def main():
     _write(idx_path, {"title": SITE_TITLE, "handle": HANDLE, "weeks": weeks, "site_url": SITE_URL,
                       "buttondown": BUTTONDOWN_USERNAME or None, "goatcounter": GOATCOUNTER_CODE or None,
                       "latest": {"season": weeks[-1]["season"], "week": weeks[-1]["week"]}})
+    synth_run = bool(raw.get("synthetic"))
+    n_graded = record.grade_weeks(site, args.season, week, sched, plays, tpls, M, synth_run)
+    n_pub, n_walk = record.build(site, args.season, week, mmeta, synth_run)
+    league.build(site, args.season, week, plays, sched, tpls, lev_teams, M, pctx["qb"], pctx["names"], synth_run)
+    for od in (site / "data" / str(args.season)).glob("wk*"):
+        if od != wdir:
+            docs += [json.loads(f.read_text()) for f in od.glob(f"{args.season}_*.json") if not (site / "g" / f"{f.stem}.html").exists()]
+    n_og = share.write(site, docs, M)
+    log.info("recaps: %d graded · record: %d published, %d walk-forward · %d new preview images", n_graded, n_pub, n_walk, n_og)
+    health.info("recaps", {"graded": n_graded, "published": n_pub, "walk": n_walk})
     log.info("feeds: %d items", feeds.build(site, M))
     if not raw.get("synthetic"):
         nl, nh = assets.download(site, M, pctx["heads"], pctx["need_heads"])

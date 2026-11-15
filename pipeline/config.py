@@ -38,7 +38,7 @@ MODEL_FIRST_SEASON = 2016
 # Public site URL (feeds and email links).
 SITE_URL = "https://paulkellar2023.github.io/nfl-scouting-report/"
 # Buttondown: your username (public, used by the signup form). Empty = email signup hidden.
-BUTTONDOWN_USERNAME = "YOUR_USERNAME"
+BUTTONDOWN_USERNAME = "paulkellar11"
 # "draft" = the weekly run creates drafts in Buttondown for you to review. "send" = sends right away.
 EMAIL_MODE = "draft"
 # GoatCounter site code for privacy-friendly visit counts (https://<code>.goatcounter.com). Empty = off.

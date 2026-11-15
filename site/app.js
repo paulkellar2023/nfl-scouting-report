@@ -30,6 +30,7 @@ function fmt(v, k) {
   }
 }
 function tickFmt(v, k, step) {
+  if (k === "b3") return v.toFixed(3);
   if (Math.abs(v) < 1e-9) return "0";
   if (k === "pct" || k === "pct1") return (v * 100).toFixed(step * 100 < 1 ? 1 : 0) + "%";
   if (k === "pct_pm") return sgn(v * 100, step * 100 < 1 ? 1 : 0) + "%";
@@ -478,7 +479,39 @@ function calib(c) {
   txt(svg, (sx + 70 + sr) / 2, 90 + bs.length * rh + 24, "← BETTER (LOWER)", { "text-anchor": "middle", "font-size": 15, "font-weight": 800, fill: "#6E6E75", "letter-spacing": ".08em" });
   return svg;
 }
-const CHARTS = { scatter, pscatter, duel, bars, gaps, splits, trend, pstrip, probbars, waterfall, dist, injuries, units, calib };
+function lineChart(series, opt) {
+  const svg = newSvg(560), box = { l: 130, r: W - 150, t: 30, b: 450 };
+  const weeks = [...new Set(series.flatMap(s => s.pts.map(p => p[0])))].sort((a, b) => a - b);
+  const all = series.flatMap(s => s.pts.map(p => p[1]));
+  if (!weeks.length || !all.length) return svg;
+  const [y0, y1] = extent(opt.zero ? [Math.min(0, ...all), Math.max(0, ...all)] : all, 0.12);
+  const X = lin(weeks[0], weeks[weeks.length - 1] + (weeks.length === 1 ? 1 : 0), box.l, box.r), Y = lin(y0, y1, box.b, box.t);
+  axes(svg, X, Y, { ticks: weeks, step: 1 }, nice(y0, y1, 5), "num0", opt.fy, box);
+  if (opt.zero) dashed(svg, box.l, Y(0), box.r, Y(0));
+  for (const s of series) {
+    const pts = s.pts;
+    el("polyline", { points: pts.map(p => `${X(p[0])},${Y(p[1])}`).join(" "), fill: "none", stroke: s.color, "stroke-width": 5, "stroke-linejoin": "round", "stroke-dasharray": s.dash || null }, svg);
+    for (const p of pts) el("circle", { cx: X(p[0]), cy: Y(p[1]), r: 6, fill: s.dash ? "#0B0B0C" : s.color, stroke: s.color, "stroke-width": 3 }, svg);
+    const last = pts[pts.length - 1];
+    if (last) txt(svg, X(last[0]) + 16, Y(last[1]) + 8 + (s.dy || 0), s.label, { "font-size": 22, "font-weight": 900, fill: s.color });
+  }
+  axisTitles(svg, { x_label: "WEEK", y_label: opt.y_label, y_sub: opt.y_sub || "" }, box);
+  return svg;
+}
+function cumline(c) {
+  const m = c.cum.map(r => [r.week, r.model]), k = c.cum.map(r => [r.week, r.market]);
+  const gapDy = m.length && Math.abs(m[m.length - 1][1] - k[k.length - 1][1]) < 0.004 ? 14 : 0;
+  return lineChart([{ label: "MODEL", color: "#FB4F14", pts: m, dy: m.length && m[m.length - 1][1] > k[k.length - 1][1] ? gapDy : -gapDy },
+    { label: "MARKET", color: "#F4F4F2", dash: "10 8", pts: k, dy: m.length && m[m.length - 1][1] > k[k.length - 1][1] ? -gapDy : gapDy }],
+    { fy: "b3", y_label: "BRIER SCORE TO DATE", y_sub: "Lower is better" });
+}
+function roll(pts, n = 3) { return pts.map((p, i) => { const w = pts.slice(Math.max(0, i - n + 1), i + 1); return [p[0], w.reduce((a, q) => a + q[1], 0) / w.length]; }); }
+function tline(c) {
+  const off = roll(c.trend.filter(r => r.off !== null).map(r => [r.week, r.off])), def = roll(c.trend.filter(r => r.def !== null).map(r => [r.week, r.def]));
+  return lineChart([{ label: "OFFENSE", color: T(c.team).accent, pts: off }, { label: "DEF. ALLOWED", color: "#9C9CA0", dash: "10 8", pts: def }],
+    { fy: "epa", zero: true, y_label: "EPA PER PLAY", y_sub: "3-week rolling mean" });
+}
+const CHARTS = { cumline, tline, scatter, pscatter, duel, bars, gaps, splits, trend, pstrip, probbars, waterfall, dist, injuries, units, calib };
 
 
 /* ---------- card ---------- */
@@ -519,12 +552,13 @@ function cardEl(c, g) {
   card.querySelector('[data-act="png"]').onclick = () => exportPng(card, c);
   card.querySelector('[data-act="copy"]').onclick = () => copyPng(card);
   card.querySelector('[data-act="link"]').onclick = e => {
-    navigator.clipboard?.writeText(location.href.split("?")[0] + "?card=" + encodeURIComponent(c.id));
+    navigator.clipboard?.writeText(shareURL(g.id) + "?card=" + encodeURIComponent(c.id));
     e.target.textContent = "COPIED"; setTimeout(() => (e.target.textContent = "LINK"), 1200);
   };
   card.id = "card-" + c.id.replace(/[^a-z0-9]/gi, "-");
   return card;
 }
+function shareURL(id) { return (S.idx.site_url || location.href.split("#")[0]) + "g/" + id + ".html"; }
 let h2i = null;
 async function cardBlob(card) {
   if (!h2i) {
@@ -599,7 +633,8 @@ function board() {
     tile.innerHTML = `<div class="tile-meta"><span>${esc(g.kickoff)}</span>${g.primetime ? '<span class="chip prime">PRIMETIME</span>' : ""}</div>
       <div class="teams"><div class="team">${logoHTML(g.away)}<div><b>${esc(a.nick)}</b><small>${g.away}</small></div></div>
       <span class="at">at</span><div class="team home">${logoHTML(g.home)}<div><b>${esc(hm.nick)}</b><small>${g.home}</small></div></div></div>
-      <div class="line">${g.line ? esc(g.line.text) : "Line pending"}<span>${esc(imp)}</span></div>
+      ${g.final ? `<div class="line final">FINAL · ${g.away} ${g.final[g.away]} · ${g.home} ${g.final[g.home]}${g.model_ok === true ? '<span class="ok">MODEL ✓</span>' : g.model_ok === false ? '<span class="no">MODEL ✗</span>' : ""}</div>`
+        : `<div class="line">${g.line ? esc(g.line.text) : "Line pending"}<span>${esc(imp)}</span></div>`}
       ${heatHTML(g.heat, g.away, g.home)}
       ${g.model ? `<div class="mline"><span>MODEL</span><b>${g.home} ${Math.round(g.model.p_home * 100)}%</b>${g.model.mkt !== null ? `<span>MKT</span><b>${g.home} ${Math.round(g.model.mkt * 100)}%</b>` : ""}</div>` : ""}
       ${g.tease ? `<p class="tease">${esc(g.tease[0])}<span>${esc(g.tease[1])}</span></p>` : ""}
@@ -611,28 +646,40 @@ function board() {
     grid.appendChild(tile);
   });
 }
+function keyRes(rc, t, i) {
+  const r = rc && rc.keys[t] && rc.keys[t][i];
+  if (!r) return "";
+  if (r.status === "na") return '<span class="kres na">NOT GRADED</span>';
+  if (r.status === "low") return `<span class="kres na">TOO FEW PLAYS TO GRADE (${r.n})</span>`;
+  return `<span class="kres ${r.status === "won" ? "ok" : "no"}">${r.status === "won" ? "✓ WON" : "✗ LOST"}</span><small class="kval">In the game: ${r.off} ${fmt(r.value, r.fmt)} ${esc(r.label)} (league avg ${fmt(r.avg, r.fmt)}, ${r.n} ${r.label.includes("red-zone") ? "trips" : "plays"})</small>`;
+}
 async function matchup(id, tab, focus) {
   const G = S.games, app = $("#app");
   showLoading("Loading matchup");
   const g = await getGame(G.season, G.week, id);
   const a = T(g.away), hm = T(g.home);
   const imp = g.line && g.line.implied ? `Implied: ${g.away} ${g.line.implied[g.away]} · ${g.home} ${g.line.implied[g.home]}` : "";
+  const rc = g.recap;
+  const call = (lab, c) => c ? `<span class="${c.ok ? "ok" : c.ok === false ? "no" : ""}">${lab}: ${c.team} ${Math.round(c.p * 100)}%${c.ok ? " ✓" : c.ok === false ? " ✗" : ""}</span>` : "";
   const stake = t => g.leverage.p_playoffs && g.leverage.p_playoffs[t] !== undefined
     ? `<span class="chip">${t} playoff odds ${Math.round(g.leverage.p_playoffs[t] * 100)}% · swing ${Math.round(Math.abs(g.leverage.by_team[t] || 0) * 100)} pts</span>` : "";
   app.innerHTML = `<section class="hero" style="--a:${a.accent};--h:${hm.accent}">
       <div class="side">${logoHTML(g.away)}<div><h2>${esc(a.nick)}</h2><small>${esc(a.name)}</small></div></div>
       <div class="mid"><div class="k">${esc(g.kickoff)}${g.primetime ? " · PRIMETIME" : ""}${g.after_kickoff ? " · BUILT AFTER KICKOFF (PRE-WEEK DATA ONLY)" : ""}</div>
         <div class="ln">${g.line ? esc(g.line.text) : "Line pending"}</div><div class="imp">${esc(imp)}${g.line_asof ? ` · line as of ${esc(g.line_asof.slice(5, 10).replace("-", "/"))}` : ""}</div>
-        <div class="stakes">${stake(g.away)}${stake(g.home)}</div></div>
+        <div class="stakes">${stake(g.away)}${stake(g.home)}</div><button type="button" class="share-btn">COPY SHARE LINK</button></div>
       <div class="side home">${logoHTML(g.home)}<div><h2>${esc(hm.nick)}</h2><small>${esc(hm.name)}</small></div></div>
     </section>
+    ${rc ? `<section class="recap"><b>FINAL</b><div class="score">${[g.away, g.home].map(t => `<span class="${rc.winner === t ? "w" : ""}">${logoHTML(t)}<em>${rc.final[t]}</em></span>`).join("")}</div>
+      <p>${esc(rc.text)}</p><div class="calls">${call("MODEL", rc.model)}${call("MARKET", rc.market)}</div></section>` : ""}
     ${g.summary ? `<p class="summary"><b>WHO HAS THE EDGE</b>${esc(g.summary)}<span class="src">${g.summary_src === "llm" ? "AI summary of the keys and cards below, not betting advice." : "Rule-based summary of the keys below."}</span></p>` : ""}
     <section class="keys">${[g.away, g.home].map(t => `<div class="keyset" style="--acc:${T(t).accent}">
-      <h3>${logoHTML(t)}${esc(T(t).nick)}: 3 keys to success</h3><ol>${(g.keys[t] || []).map((k, i) => `<li><i>${i + 1}</i><div>
-        <b>${esc(k.phrase)}<em class="${k.favorable ? "up" : "dn"}">${k.favorable ? "EDGE" : "WATCH"}</em></b><p>${esc(k.detail)}</p></div></li>`).join("")}</ol></div>`).join("")}</section>
+      <h3>${logoHTML(t)}${esc(T(t).nick)}: 3 keys to success${rc && rc.keys_won[t] && rc.keys_won[t][1] ? ` <small>won ${rc.keys_won[t][0]} of ${rc.keys_won[t][1]}</small>` : ""}</h3><ol>${(g.keys[t] || []).map((k, i) => `<li><i>${i + 1}</i><div>
+        <b>${esc(k.phrase)}<em class="${k.favorable ? "up" : "dn"}">${k.favorable ? "EDGE" : "WATCH"}</em></b><p>${esc(k.detail)}</p>${keyRes(rc, t, i)}</div></li>`).join("")}</ol></div>`).join("")}</section>
     <div class="tabs"><div role="tablist"><button role="tab" data-tab="team">TEAM</button><button role="tab" data-tab="players">PLAYERS</button>${(g.model_cards || []).length ? '<button role="tab" data-tab="model">MODEL</button>' : ""}</div>
       <label class="topn">SHOW <select aria-label="How many cards to show"><option value="auto">Top picks</option><option value="10">Top 10</option></select></label></div>
     <div class="cards"></div>`;
+  $(".share-btn", app).onclick = e => { navigator.clipboard?.writeText(shareURL(id)); e.target.textContent = "COPIED"; setTimeout(() => (e.target.textContent = "COPY SHARE LINK"), 1200); };
   const topSel = $(".topn select", app);
   try { topSel.value = localStorage.getItem("topn") || "auto"; } catch (e) { /* storage blocked */ }
   let cur = "team";
@@ -656,6 +703,95 @@ async function matchup(id, tab, focus) {
   const ftab = focus && [...g.player_cards].some(c => c.id === focus) ? "players" : tab;
   show(["players", "model"].includes(ftab) && (ftab !== "model" || (g.model_cards || []).length) ? ftab : "team");
   if (focus) { const e = document.getElementById("card-" + focus.replace(/[^a-z0-9]/gi, "-")); if (e) e.scrollIntoView({ block: "center" }); }
+}
+
+
+/* ---------- season views: track record, league table, team pages ---------- */
+const seasonCache = {};
+function getSeason(file) {
+  const p = `data/${S.idx.latest.season}/${file}.json`;
+  if (!seasonCache[p]) seasonCache[p] = getJSON(p).catch(e => { delete seasonCache[p]; throw e; });
+  return seasonCache[p];
+}
+function chartBox(title, sub, svg, note) {
+  const b = h("article", { class: "card wide" });
+  b.innerHTML = `<h3 class="t1">${esc(title)}</h3><p class="sub">${esc(sub)}</p><div class="chart"></div>${note ? `<div class="foot" style="display:block"><small>${esc(note)}</small></div>` : ""}`;
+  $(".chart", b).appendChild(svg);
+  return b;
+}
+const pctS = v => (v === null || v === undefined) ? "–" : Math.round(v * 100) + "%";
+const ord = n => n === null || n === undefined ? "–" : n + (["th", "st", "nd", "rd"][(n % 100 > 10 && n % 100 < 14) ? 0 : Math.min(n % 10, 4) % 4] || "th");
+function statTile(label, m, k, note) {
+  if (!m || !k) return `<div class="stat"><span>${esc(label)}</span><b>No graded games yet</b><small>${esc(note)}</small></div>`;
+  const better = m.brier < k.brier;
+  return `<div class="stat"><span>${esc(label)}</span>
+    <div class="vs"><div><em>MODEL</em><b class="${better ? "up" : ""}">${m.brier.toFixed(3)}</b><small>${Math.round(m.acc * 100)}% picks right</small></div>
+    <div><em>MARKET</em><b class="${better ? "" : "up"}">${k.brier.toFixed(3)}</b><small>${Math.round(k.acc * 100)}% picks right</small></div></div>
+    <small>Brier score, lower is better · ${m.n} games · ${esc(note)}</small></div>`;
+}
+async function recordView() {
+  showLoading("Loading track record");
+  const r = await getSeason("record"), app = $("#app");
+  app.innerHTML = `<div class="board-head"><h1>Model <span>track record</span></h1></div>
+    <p class="board-note">Our win probabilities vs. the betting market, graded after every game. <a href="methods.html#record">How it is graded</a></p>
+    <section class="stats">${statTile("Published picks, " + r.season, r.published.model, r.published.market, "the last version on this site before kickoff")}
+    ${statTile("Season walk-forward, " + r.season, r.walk.model, r.walk.market, "every game, each week fit only on earlier games")}</section>
+    <div class="cards rec-cards"></div>
+    <section class="log"><h2>Published picks</h2>${r.published.games.length ? `<div class="tbl-wrap"><table class="tbl"><thead><tr><th>WK</th><th>GAME</th><th>MODEL</th><th>MARKET</th><th>FINAL</th></tr></thead><tbody>
+    ${r.published.games.map(x => { const ph = x.p, pk = x.pm, mt = ph >= 0.5 ? x.home : x.away, kt = pk === null ? null : pk >= 0.5 ? x.home : x.away, win = x.y ? x.home : x.away;
+      return `<tr><td>${x.week}</td><td><a href="#/${r.season}/${x.week}/${x.id}">${x.away} at ${x.home}</a></td>
+      <td class="${mt === win ? "ok" : "no"}">${mt} ${pctS(Math.max(ph, 1 - ph))} ${mt === win ? "✓" : "✗"}</td>
+      <td class="${kt === win ? "ok" : "no"}">${kt ? `${kt} ${pctS(Math.max(pk, 1 - pk))} ${kt === win ? "✓" : "✗"}` : "–"}</td>
+      <td>${x.away} ${x.final[x.away]} · ${x.home} ${x.final[x.home]}</td></tr>`; }).join("")}</tbody></table></div>` : '<p class="empty">Picks are graded the week after they are published.</p>'}</section>`;
+  const box = $(".rec-cards", app);
+  if (r.walk.cum.length) box.appendChild(chartBox("Season to date: model vs. market", "Brier score of every game this season, walk-forward", cumline({ cum: r.walk.cum }),
+    "Walk-forward: week N uses a model fit only on games before week N. Uses the starting QB who actually played. Market = closing line, vig removed."));
+  if (r.published.cum.length > 1) box.appendChild(chartBox("Published picks: model vs. market", "Brier score of the picks shown on this site", cumline({ cum: r.published.cum }), "Market = line at our last pre-kickoff build."));
+  if (r.calib.length) box.appendChild(chartBox("Calibration and past seasons", "When the model says 70%, does the team win about 70% of the time?", calib({ pts: r.calib, seasons: r.backtest }),
+    "Walk-forward backtest: each season predicted by a model fit only on earlier seasons."));
+}
+function rankCell(r) {
+  if (r === null || r === undefined) return "<td>–</td>";
+  const a = Math.pow((33 - r) / 32, 2) * 0.55;
+  return `<td class="rk" style="background:rgba(251,79,20,${a.toFixed(2)})">${r}</td>`;
+}
+async function teamsView(sortKey) {
+  showLoading("Loading teams");
+  const L = await getSeason("league"), app = $("#app");
+  const rows = Object.entries(L.teams).map(([t, x]) => ({ t, x }));
+  const u = (x, id, side) => x.units[id] ? x.units[id][side].r : null;
+  const cols = [["net", "NET", r => r.x.net.r], ["rec", "W-L", r => -(r.x.w + 0.5 * r.x.t) / Math.max(1, r.x.w + r.x.l + r.x.t)], ["pd", "PD", r => -r.x.pd],
+    ["chg", "TREND", r => -(r.x.net.chg ?? -99)], ["po", "PASS O", r => u(r.x, "pass_epa", "off")], ["ro", "RUSH O", r => u(r.x, "rush_epa", "off")],
+    ["pdf", "PASS D", r => u(r.x, "pass_epa", "def")], ["rd", "RUSH D", r => u(r.x, "rush_epa", "def")], ["pl", "PLAYOFFS", r => -(r.x.p_playoffs ?? -1)]];
+  const key = cols.find(c => c[0] === sortKey) ? sortKey : "net", f = cols.find(c => c[0] === key)[2];
+  rows.sort((a, b) => (f(a) ?? 99) - (f(b) ?? 99));
+  app.innerHTML = `<div class="board-head"><h1>League <span>table</span></h1></div>
+    <p class="board-note">Opponent-adjusted ranks through week ${L.week - 1}. NET = offense minus defense EPA per play. TREND = change in NET rank over the last ${L.trend_weeks} weeks. Click a column to sort. <a href="methods.html#teams">How it works</a></p>
+    <div class="tbl-wrap"><table class="tbl league"><thead><tr><th>TEAM</th>${cols.map(c => `<th><a href="#/teams?sort=${c[0]}" class="${c[0] === key ? "on" : ""}">${c[1]}</a></th>`).join("")}</tr></thead><tbody>
+    ${rows.map(({ t, x }) => `<tr><td class="tm"><a href="#/team/${t}">${logoHTML(t)}<b>${esc(T(t).nick)}</b></a></td>${rankCell(x.net.r)}
+      <td>${x.w}-${x.l}${x.t ? "-" + x.t : ""}</td><td>${x.pd > 0 ? "+" : ""}${x.pd}</td>
+      <td class="chg ${x.net.chg > 0 ? "up" : x.net.chg < 0 ? "dn" : ""}">${x.net.chg === null ? "–" : x.net.chg > 0 ? "▲" + x.net.chg : x.net.chg < 0 ? "▼" + -x.net.chg : "="}</td>
+      ${rankCell(u(x, "pass_epa", "off"))}${rankCell(u(x, "rush_epa", "off"))}${rankCell(u(x, "pass_epa", "def"))}${rankCell(u(x, "rush_epa", "def"))}
+      <td>${pctS(x.p_playoffs)}</td></tr>`).join("")}</tbody></table></div>`;
+}
+async function teamView(t) {
+  showLoading("Loading team");
+  const L = await getSeason("league"), x = L.teams[t], app = $("#app"), m = T(t);
+  if (!x) { app.innerHTML = '<p class="empty">No data for that team.</p>'; return; }
+  const next = x.games.find(gm => !gm.final && gm.week === S.idx.latest.week);
+  app.innerHTML = `<section class="team-hero" style="--acc:${m.accent}">${logoHTML(t)}<div><h1>${esc(m.name)}</h1>
+      <p>${x.w}-${x.l}${x.t ? "-" + x.t : ""} · PD ${x.pd > 0 ? "+" : ""}${x.pd} · ${ord(x.net.r)} in NET${x.net.chg ? ` (${x.net.chg > 0 ? "▲" : "▼"}${Math.abs(x.net.chg)})` : ""} · playoff odds ${pctS(x.p_playoffs)}${x.qb ? ` · QB ${esc(x.qb)}` : ""}</p></div>
+      ${next ? `<a class="follow-btn" href="#/${L.season}/${next.week}/${next.id}">WEEK ${next.week}: ${next.home ? "VS" : "AT"} ${next.opp} &rarr;</a>` : ""}</section>
+    <section class="profile"><h2>Unit profile <small>rank of 32, opponent-adjusted where noted</small></h2><div class="units-grid">
+    ${Object.values(x.units).map(un => ["off", "def"].map(sd => { const r = un[sd].r; return `<div class="unit"><span>${esc((sd === "off" ? un.unit_off : un.unit_def).toUpperCase())}</span>
+      <div class="ubar"><i style="width:${r ? (33 - r) / 32 * 100 : 0}%;background:${m.accent}"></i></div><b>${ord(r)}</b><small>${fmt(un[sd].v, un.fmt)} ${esc(un.label)}${sd === "def" ? " allowed" : ""}</small></div>`; }).join("")).join("")}
+    </div></section><div class="cards team-cards"></div>
+    <section class="log"><h2>Season</h2><div class="tbl-wrap"><table class="tbl"><thead><tr><th>WK</th><th>OPPONENT</th><th>MODEL</th><th>RESULT</th></tr></thead><tbody>
+    ${x.games.map(gm => { const f = gm.final, my = f ? f[t] : null, op = f ? f[gm.opp] : null, res = f ? (my > op ? "W" : my < op ? "L" : "T") : "";
+      return `<tr><td>${gm.week}</td><td class="tm"><a href="#/${L.season}/${gm.week}/${gm.id}">${gm.home ? "vs" : "at"} ${logoHTML(gm.opp)}<b>${esc(T(gm.opp).nick)}</b></a></td>
+      <td>${gm.p === null ? "–" : pctS(gm.p)}</td><td class="${res === "W" ? "ok" : res === "L" ? "no" : ""}">${f ? `${res} ${my}-${op}` : esc(gm.kickoff || "")}</td></tr>`; }).join("")}
+    </tbody></table></div><p class="board-note">Only weeks with a report on this site are listed.</p></section>`;
+  $(".team-cards", app).appendChild(chartBox(`${m.nick} by week`, "Offense EPA per play vs. EPA per play allowed", tline({ team: t, trend: x.trend }), "Raw game values, so opponent strength is not removed here."));
 }
 
 /* ---------- routing ---------- */
@@ -685,6 +821,16 @@ async function route() {
   const params = new URLSearchParams(q || location.search);
   const parts = path.split("/").filter(Boolean);
   const latest = S.idx.latest;
+  if (["record", "teams", "team"].includes(parts[0])) {
+    try { await loadWeek(latest.season, latest.week); $("#week-select").value = `${latest.season}/${latest.week}`; } catch (e) { /* footer only */ }
+    $("#game-select").value = ""; window.scrollTo(0, 0);
+    document.querySelectorAll(".navlink").forEach(a => a.classList.toggle("on", a.dataset.nav === (parts[0] === "record" ? "record" : "teams")));
+    try {
+      if (parts[0] === "record") await recordView(); else if (parts[0] === "teams") await teamsView(params.get("sort")); else await teamView((parts[1] || "").toUpperCase());
+    } catch (e) { console.error(e); $("#app").innerHTML = '<p class="empty">Not built yet. It appears after the next weekly run.</p>'; }
+    track(); return;
+  }
+  document.querySelectorAll(".navlink").forEach(a => a.classList.remove("on"));
   const season = +(parts[0] || latest.season), week = +(parts[1] || latest.week), id = parts[2] || "";
   if (!S.week || S.week.season !== season || S.week.week !== week) showLoading("Loading week " + week);
   try { await loadWeek(season, week); } catch (e) { $("#app").innerHTML = '<p class="empty">That week has no report yet.</p>'; return; }

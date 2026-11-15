@@ -26,7 +26,7 @@
 
   <nav class="toc" aria-label="On this page">
     <a href="#data">Data</a><a href="#cleaning">Cleaning</a><a href="#metrics">Metrics</a><a href="#adjust">Adjustment</a>
-    <a href="#cards">Cards &amp; keys</a><a href="#model">Model</a><a href="#leverage">Leverage</a><a href="#limits">Limits</a><a href="#credits">Credits</a>
+    <a href="#cards">Cards &amp; keys</a><a href="#model">Model</a><a href="#record">Track record</a><a href="#recaps">Recaps</a><a href="#teams">Teams</a><a href="#leverage">Leverage</a><a href="#limits">Limits</a><a href="#credits">Credits</a>
   </nav>
 
   <section id="data"><h2>Data</h2>
@@ -74,8 +74,26 @@
     <p>It is a different lens on the data, not betting advice. The market usually beats it.</p>
   </section>
 
+  <section id="record"><h2>Track record</h2>
+    <p>Every finished game is graded with the Brier score and log loss, for the model and for the market (vig-free moneyline, else the spread), on the same games. Ties are left out.</p>
+    <ul>
+      <li><b>Published picks:</b> the last version of each game shown on this site before kickoff, graded against the market number from that same build. This is the honest live record.</li>
+      <li><b>Season walk-forward:</b> every game this season, where week N is predicted by a model fit only on games before week N. It uses the QB who actually started, so it is slightly optimistic, and the market number is the closing line.</li>
+      <li><b>Past seasons:</b> the same walk-forward backtest by season, plus a calibration chart (predicted vs. actual win rate in 10-point bins).</li>
+    </ul>
+    <p>About 270 games per season is a small sample. A Brier gap smaller than about 0.01 is mostly noise.</p>
+  </section>
+
+  <section id="recaps"><h2>Post-game recaps</h2>
+    <p>After a game, each key to success is checked against the same stat in that game, using plays with a win probability between 10% and 90%. The offense "wins" a key if its in-game value beats the league average for that stat (for pressure and stuff rate, if it is lower). A team wins the key if its side won it. Keys need a minimum number of plays (for example 8 dropbacks for passing EPA); below that they are marked "too few plays". Run-gap, coverage-shell, form and luck keys are not graded. Recaps are added on the next build after nflverse publishes the game's play-by-play, usually the next morning.</p>
+  </section>
+
+  <section id="teams"><h2>League table &amp; team pages</h2>
+    <p>NET = opponent-adjusted offensive EPA per play minus opponent-adjusted defensive EPA per play allowed (all plays, garbage time removed, recency-weighted). Pass and rush ranks use the same adjustment as the cards. TREND compares today's NET rank with the NET rank from plays through 4 weeks earlier. The weekly chart on team pages shows raw game values, so it does not remove opponent strength.</p>
+  </section>
+
   <section id="leverage"><h2>Playoff leverage &amp; standings</h2>
-    <p>The rest of the season is simulated 10,000 times. This week's games use the market spread, and later games use the model's ratings, regressed toward even. Seeding uses the main NFL tiebreakers (head-to-head, division record, conference record, point differential) and is approximate.</p>
+    <p>The rest of the season is simulated 10,000 times. This week's games use the market spread, and later games use the model's ratings, regressed toward even. Seeding is approximate: division winners, then wild cards by wins, with division wins and then a coin flip as tiebreakers.</p>
   </section>
 
   <section id="limits"><h2>Limits</h2>

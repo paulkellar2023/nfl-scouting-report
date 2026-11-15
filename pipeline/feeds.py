@@ -31,7 +31,7 @@ def _items(site):
 def _item(d, teams):
     a, h = d["away"], d["home"]
     title = f"Week {d['week']}: {teams[a]['nick']} at {teams[h]['nick']}"
-    link = f"{SITE_URL}#/{d['season']}/{d['week']}/{d['id']}"
+    link = f"{SITE_URL}g/{d['id']}.html"
     parts = [d["kickoff"]]
     if d.get("line"):
         parts.append(f"Line: {d['line']['text']}")

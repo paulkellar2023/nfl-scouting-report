@@ -57,6 +57,7 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add site/data site/feeds
+          git add site/g site/og 2>/dev/null || true
           git add site/assets 2>/dev/null || true
           git add model 2>/dev/null || true
           git diff --cached --quiet || git commit -m "Weekly report $(date -u +%Y-%m-%d)"

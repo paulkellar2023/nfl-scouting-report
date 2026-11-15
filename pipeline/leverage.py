@@ -64,7 +64,7 @@ def simulate(sched, meta, target_week, rate, seed=7):
         wc = np.argsort(-k2, axis=1)[:, :3]
         win_mask[np.arange(N_SIMS)[:, None], wc] = True
         po[:, cidx] = win_mask
-    out = {}
+    out = {"_teams": {t: round(float(po[:, ix[t]].mean()), 3) for t in teams}}
     for j, g in rem[rem["week"] == target_week].iterrows():
         h, a = hi[j], ai[j]
         w = hw[:, j]

@@ -223,6 +223,23 @@ def backtest(feat, min_train=2):
     return rows, calib
 
 
+def season_walk(allf, season, week):
+    """Walk-forward predictions for this season's played weeks: week w uses a model fit only on games before w."""
+    done = allf[allf["margin"].notna()]
+    cur = done[(done["season"] == season) & (done["week"] < week)]
+    rows = []
+    for w in sorted(cur["week"].unique()):
+        tr = done[(done["season"] < season) | (done["week"] < w)]
+        r = Ridge().fit(tr, _fit_alpha(tr))
+        sig = _fit_sigma(r.predict(tr), (tr["margin"] > 0).astype(float).values)
+        te = cur[cur["week"] == w]
+        for (_, g), p in zip(te.iterrows(), norm.cdf(r.predict(te) / sig)):
+            pm = market_prob(g["spread_line"], g["home_ml"], g["away_ml"])[0]
+            rows.append({"id": g["game_id"], "week": int(w), "home": g["home"], "away": g["away"], "p": round(float(p), 4),
+                         "pm": None if pm is None else round(float(pm), 4), "margin": float(g["margin"])})
+    return rows
+
+
 def run(hist, season, week, starters, first_season):
     """hist: dict with pbp (multi-season), sched, injuries, snaps, players. Returns (preds by game_id, meta)."""
     d = _prep(hist["pbp"])
@@ -274,6 +291,6 @@ def run(hist, season, week, starters, first_season):
     meta = {"backtest": bt, "calib": calib, "sigma": sig, "alpha": alpha, "n_train": int(len(train)),
             "coef_pts_per_sd": {LABELS[f]: round(float(b), 2) for f, b in zip(FEATS, r.beta[:-1])},
             "hfa": round(float(r.beta[-1]), 2), "train_seasons": [int(first_season), int(season)],
-            "injuries_available": bool(len(injt))}
+            "injuries_available": bool(len(injt)), "season_walk": season_walk(allf, season, week)}
     log.info("model: alpha %s sigma %.2f hfa %.2f coefs %s", alpha, sig, r.beta[-1], meta["coef_pts_per_sd"])
     return preds, meta

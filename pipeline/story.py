@@ -234,7 +234,7 @@ def key_line(c, team, M):
         phrase = t.keys[2] if good else t.keys[3]
         detail = (f"{poss(M[b]['label'])} defense ranks {ordinal(c['rb'])} in {t.label} ({fmt(_val(t.deff, b), t.fmt)} {t.def_word}). "
                   f"{M[a]['label']} ranks {ordinal(c['ra'])} ({fmt(_val(t.off, a), t.fmt)}).")
-    return {"phrase": phrase, "detail": detail, "favorable": bool(good), "id": t.id}
+    return {"phrase": phrase, "detail": detail, "favorable": bool(good), "id": t.id, "side": "off" if team == a else "def"}
 
 
 # ---------- special templates ----------
