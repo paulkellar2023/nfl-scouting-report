@@ -54,18 +54,31 @@ function extent(a, pad = 0.08) {
 }
 const T = t => S.teams[t] || { accent: "#BBBBBB", color: "#444", label: t, nick: t, abbr: t };
 async function getJSON(p) { const r = await fetch(p, { cache: "no-cache" }); if (!r.ok) throw new Error(p); return r.json(); }
-function preload(urls) {
-  return Promise.all([...new Set(urls.filter(Boolean))].filter(u => !(u in S.ok)).map(u => new Promise(res => {
-    const i = new Image(); let fin = false;
-    const done = ok => { if (fin) return; fin = true; S.ok[u] = ok; res(); };
-    i.onload = () => done(true); i.onerror = () => done(false); setTimeout(() => done(false), 4000); i.src = u;
-  })));
+const gameCache = {};
+function getGame(season, week, id) {
+  const p = `data/${season}/wk${String(week).padStart(2, "0")}/${id}.json`;
+  if (!gameCache[p]) gameCache[p] = getJSON(p).catch(e => { delete gameCache[p]; throw e; });
+  return gameCache[p];
 }
-function logoSrc(m) { return S.ok[m.logo] ? m.logo : S.ok[m.logo_url] ? m.logo_url : null; }
+/* Images render right away; on error the local logo falls back to ESPN, then to a colored circle. */
+window.__lgErr = img => {
+  if (img.dataset.alt && !img.dataset.tried) { img.dataset.tried = "1"; img.src = img.dataset.alt; return; }
+  const t = img.dataset.team, m = T(t);
+  img.outerHTML = `<span class="fb ${img.className}" style="background:${m.color}" role="img" aria-label="${esc(m.name || t)}">${t}</span>`;
+};
 function logoHTML(t, cls = "") {
-  const m = T(t), src = logoSrc(m);
-  return src ? `<img class="${cls}" src="${src}" alt="${esc(m.name || t)} logo">`
-    : `<span class="fb ${cls}" style="background:${m.color}" role="img" aria-label="${esc(m.name || t)}">${t}</span>`;
+  const m = T(t);
+  return `<img class="${cls}" src="${m.logo}" data-alt="${m.logo_url || ""}" data-team="${t}" alt="${esc(m.name || t)} logo" decoding="async" onerror="__lgErr(this)">`;
+}
+function svgImg(parent, srcs, attrs, fallback) {
+  const im = el("image", { href: srcs[0], ...attrs }, parent);
+  let i = 0;
+  im.addEventListener("error", () => {
+    i += 1;
+    if (srcs[i]) { im.setAttribute("href", srcs[i]); return; }
+    im.remove(); fallback.removeAttribute("visibility");
+  });
+  return im;
 }
 
 /* ---------- svg primitives ---------- */
@@ -73,12 +86,10 @@ function logo(g, team, cx, cy, size, { hl = false, dim = false } = {}) {
   const m = T(team), grp = el("g", {}, g);
   if (hl) el("circle", { cx, cy, r: size / 2 + 5, fill: "#F4F4F2", stroke: m.accent, "stroke-width": 4 }, grp);
   const s = hl ? size * 0.74 : size;
-  const src = logoSrc(m);
-  if (src) el("image", { href: src, x: cx - s / 2, y: cy - s / 2, width: s, height: s, preserveAspectRatio: "xMidYMid meet" }, grp);
-  else {
-    el("circle", { cx, cy, r: s / 2.2, fill: m.color || "#555", stroke: hl ? "none" : "#0B0B0C", "stroke-width": 2 }, grp);
-    txt(grp, cx, cy + s * 0.11, team, { "text-anchor": "middle", "font-size": s * 0.3, "font-weight": 900, fill: "#fff" });
-  }
+  const fb = el("g", { visibility: "hidden" }, grp);
+  el("circle", { cx, cy, r: s / 2.2, fill: m.color || "#555", stroke: hl ? "none" : "#0B0B0C", "stroke-width": 2 }, fb);
+  txt(fb, cx, cy + s * 0.11, team, { "text-anchor": "middle", "font-size": s * 0.3, "font-weight": 900, fill: "#fff" });
+  svgImg(grp, [m.logo, m.logo_url].filter(Boolean), { x: cx - s / 2, y: cy - s / 2, width: s, height: s, preserveAspectRatio: "xMidYMid meet" }, fb);
   if (dim) grp.setAttribute("opacity", 0.42);
   return grp;
 }
@@ -87,12 +98,11 @@ function face(svg, g, p, cx, cy, r) {
   const cp = el("clipPath", { id }, svg.querySelector("defs"));
   el("circle", { cx, cy, r }, cp);
   el("circle", { cx, cy, r: r + 4, fill: "#26262B", stroke: m.accent, "stroke-width": 4 }, g);
-  if (p.img && S.ok[p.img]) el("image", { href: p.img, x: cx - r, y: cy - r, width: 2 * r, height: 2 * r, "clip-path": `url(#${id})`, preserveAspectRatio: "xMidYMid slice" }, g);
-  else {
-    const ini = (p.name || "?").split(" ").map(s => s[0]).slice(0, 2).join("");
-    el("circle", { cx, cy, r, fill: m.color || "#444" }, g);
-    txt(g, cx, cy + r * 0.32, ini, { "text-anchor": "middle", "font-size": r * 0.85, "font-weight": 900, fill: "#fff" });
-  }
+  const ini = (p.name || "?").split(" ").map(s => s[0]).slice(0, 2).join("");
+  const fb = el("g", p.img ? { visibility: "hidden" } : {}, g);
+  el("circle", { cx, cy, r, fill: m.color || "#444" }, fb);
+  txt(fb, cx, cy + r * 0.32, ini, { "text-anchor": "middle", "font-size": r * 0.85, "font-weight": 900, fill: "#fff" });
+  if (p.img) svgImg(g, [p.img], { x: cx - r, y: cy - r, width: 2 * r, height: 2 * r, "clip-path": `url(#${id})`, preserveAspectRatio: "xMidYMid slice" }, fb);
 }
 function newSvg(h = H) { const s = el("svg", { viewBox: `0 0 ${W} ${h}`, role: "img" }); el("defs", {}, s); return s; }
 const C = { grid: "#26262A", tick: "#8E8E93", title: "#CFCFCB", sub: "#9C9CA0", dash: "#6B6B70", quad: "#8C8C90", bar: "#4A4A4F", dot: "#5C5C62" };
@@ -520,6 +530,9 @@ function heatHTML(heat, away, home) {
       <div class="heat-fill" style="left:${v >= 0 ? 50 : 50 - w}%;width:${w}%;background:${col}"></div></div><em>${sgn(x.edge, 1)}</em></div>`;
   }).join("")}</div>`;
 }
+function showLoading(msg) {
+  $("#app").innerHTML = `<div class="loading" role="status"><svg viewBox="0 0 64 64" aria-hidden="true"><path d="M11 53C11 30 30 11 53 11C53 34 34 53 11 53Z" fill="var(--brand)"/><path d="M25 39L39 25M27 33.5L30.5 37M30.5 30L34 33.5M34 26.5L37.5 30" stroke="#0B0B0C" stroke-width="2.6" stroke-linecap="round"/></svg><span>${esc(msg)}&hellip;</span></div>`;
+}
 function board() {
   const app = $("#app"), G = S.games;
   const maxLev = Math.max(0.01, ...G.games.map(g => g.leverage));
@@ -538,14 +551,17 @@ function board() {
       ${g.model ? `<div class="mline"><span>MODEL</span><b>${g.home} ${Math.round(g.model.p_home * 100)}%</b>${g.model.mkt !== null ? `<span>MKT</span><b>${g.home} ${Math.round(g.model.mkt * 100)}%</b>` : ""}</div>` : ""}
       ${g.tease ? `<p class="tease">${esc(g.tease[0])}<span>${esc(g.tease[1])}</span></p>` : ""}
       <div class="lev" title="Playoff leverage"><i style="width:${(g.leverage / maxLev) * 100}%"></i></div>`;
+    const pre = () => getGame(G.season, G.week, g.id).catch(() => {});
+    tile.addEventListener("mouseenter", pre, { once: true });
+    tile.addEventListener("touchstart", pre, { once: true, passive: true });
+    tile.addEventListener("focus", pre, { once: true });
     grid.appendChild(tile);
   });
 }
 async function matchup(id, tab, focus) {
   const G = S.games, app = $("#app");
-  const g = await getJSON(`data/${G.season}/wk${String(G.week).padStart(2, "0")}/${id}.json`);
-  const imgs = [...g.team_cards, ...g.player_cards].flatMap(c => (c.chart.pts || []).map(p => p.img));
-  await preload(imgs);
+  showLoading("Loading matchup");
+  const g = await getGame(G.season, G.week, id);
   const a = T(g.away), hm = T(g.home);
   const imp = g.line && g.line.implied ? `Implied: ${g.away} ${g.line.implied[g.away]} · ${g.home} ${g.line.implied[g.home]}` : "";
   const stake = t => g.leverage.p_playoffs && g.leverage.p_playoffs[t] !== undefined
@@ -594,8 +610,7 @@ async function loadWeek(season, week) {
   if (S.week && S.week.season === season && S.week.week === week) return;
   S.games = await getJSON(`data/${season}/wk${String(week).padStart(2, "0")}/games.json`);
   S.week = { season, week };
-  await preload(Object.values(S.teams).map(t => t.logo));
-  await preload(Object.values(S.teams).filter(t => !S.ok[t.logo]).map(t => t.logo_url));
+
   const gs = $("#game-select");
   gs.innerHTML = `<option value="">All games (board)</option>` + S.games.games.map(g =>
     `<option value="${g.id}">${g.away} at ${g.home} · ${esc(g.kickoff.split(" · ")[0])}${g.primetime ? " · PRIME" : ""}</option>`).join("");
@@ -609,6 +624,7 @@ async function route() {
   const parts = path.split("/").filter(Boolean);
   const latest = S.idx.latest;
   const season = +(parts[0] || latest.season), week = +(parts[1] || latest.week), id = parts[2] || "";
+  if (!S.week || S.week.season !== season || S.week.week !== week) showLoading("Loading week " + week);
   try { await loadWeek(season, week); } catch (e) { $("#app").innerHTML = '<p class="empty">That week has no report yet.</p>'; return; }
   $("#week-select").value = `${season}/${week}`;
   $("#game-select").value = id;
