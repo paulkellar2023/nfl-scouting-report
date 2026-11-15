@@ -22,6 +22,8 @@ def rank_phrase(r, n):
 def fmt(v, kind):
     if v is None or (isinstance(v, float) and math.isnan(v)):
         return "n/a"
+    if kind in ("epa", "yds", "pct_pm") and abs(v) < (0.005 if kind == "epa" else 0.05 if kind == "yds" else 0.0005):
+        v = 0.0
     if kind == "epa":
         return f"{v:+.2f}"
     if kind == "pct":

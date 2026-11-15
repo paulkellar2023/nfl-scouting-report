@@ -16,7 +16,7 @@ function txt(parent, x, y, s, attrs = {}) { const t = el("text", { x, y, ...attr
 function h(tag, attrs = {}, html = "") { const e = document.createElement(tag); for (const k in attrs) e.setAttribute(k, attrs[k]); if (html) e.innerHTML = html; return e; }
 function esc(s) { return String(s ?? "").replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c])); }
 const MINUS = "−";
-function sgn(v, d) { return (v > 0 ? "+" : v < 0 ? MINUS : "") + Math.abs(v).toFixed(d); }
+function sgn(v, d) { const a = Math.abs(v).toFixed(d); return (+a === 0 ? "" : v > 0 ? "+" : MINUS) + a; }
 function fmt(v, k) {
   if (v === null || v === undefined || isNaN(v)) return "";
   switch (k) {
@@ -56,7 +56,8 @@ const T = t => S.teams[t] || { accent: "#BBBBBB", color: "#444", label: t, nick:
 async function getJSON(p) { const r = await fetch(p, { cache: "no-cache" }); if (!r.ok) throw new Error(p); return r.json(); }
 function preload(urls) {
   return Promise.all([...new Set(urls.filter(Boolean))].filter(u => !(u in S.ok)).map(u => new Promise(res => {
-    const i = new Image(); const done = ok => { S.ok[u] = ok; res(); };
+    const i = new Image(); let fin = false;
+    const done = ok => { if (fin) return; fin = true; S.ok[u] = ok; res(); };
     i.onload = () => done(true); i.onerror = () => done(false); setTimeout(() => done(false), 4000); i.src = u;
   })));
 }
@@ -556,7 +557,7 @@ async function matchup(id, tab, focus) {
         <div class="stakes">${stake(g.away)}${stake(g.home)}</div></div>
       <div class="side home">${logoHTML(g.home)}<div><h2>${esc(hm.nick)}</h2><small>${esc(hm.name)}</small></div></div>
     </section>
-    ${g.summary ? `<p class="summary"><b>THE PREVIEW</b>${esc(g.summary)}</p>` : ""}
+    ${g.summary ? `<p class="summary"><b>WHO HAS THE EDGE</b>${esc(g.summary)}<span class="src">${g.summary_src === "llm" ? "AI summary of the keys and cards below, not betting advice." : "Rule-based summary of the keys below."}</span></p>` : ""}
     <section class="keys">${[g.away, g.home].map(t => `<div class="keyset" style="--acc:${T(t).accent}">
       <h3>${logoHTML(t)}${esc(T(t).nick)}: 3 keys to success</h3><ol>${(g.keys[t] || []).map((k, i) => `<li><i>${i + 1}</i><div>
         <b>${esc(k.phrase)}<em class="${k.favorable ? "up" : "dn"}">${k.favorable ? "EDGE" : "WATCH"}</em></b><p>${esc(k.detail)}</p></div></li>`).join("")}</ol></div>`).join("")}</section>

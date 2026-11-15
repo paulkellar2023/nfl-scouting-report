@@ -206,12 +206,30 @@ def main():
         for t in keys:
             for k in keys[t]:
                 k["phrase"], k["detail"] = agree(k["phrase"], plurals), agree(k["detail"], plurals)
-        facts = {"matchup": f"{M[a_]['name']} at {M[h_]['name']}", "line": ln["text"] if ln else None,
-                 "keys": {t: [f"{k['phrase']}: {k['detail']}" for k in keys[t]] for t in keys},
-                 "storylines": [f"{c['t1']} {c['t2']}" for c in team_cards[:3] + player_cards[:2]]}
-        summ = None if args.no_llm else summary.summarize(facts)
+        labels = {t: M[t]["label"] for t in (a_, h_)}
+        mkt_p = (mp or {}).get("market", {}).get("p_home")
+        if mkt_p is None and ln_now:
+            mkt_p = model.market_prob(ln_now["spread"], g.get("home_moneyline"), g.get("away_moneyline"))[0]
+        lean_t = summary.lean(h_, a_, mp["p_home"] if mp else None, mkt_p, labels)
+        facts = {"matchup": f"{M[a_]['name']} at {M[h_]['name']}", "labels": labels, "lean": lean_t,
+                 "lean_abbr": next((t for t in (a_, h_) if labels[t] == lean_t), None),
+                 "line": ln_now["text"] if ln_now else None,
+                 "model_win_pct": {h_: round(100 * mp["p_home"]), a_: round(100 * (1 - mp["p_home"]))} if mp else None,
+                 "market_win_pct": {h_: round(100 * mkt_p), a_: round(100 * (1 - mkt_p))} if mkt_p is not None else None,
+                 "keys": {t: [{"phrase": k["phrase"], "detail": k["detail"], "favorable": k["favorable"]} for k in keys[t]] for t in keys},
+                 "storylines": [{"team": labels.get(c["owner"], c["owner"]), "text": f"{c['t1']} {c['t2']}"}
+                                for c in team_cards[:4] + player_cards[:2]]}
+        fh = summary.facts_hash(facts)
+        prev = prev_doc.get(g.game_id, {})
+        if prev.get("summary_hash") == fh and prev.get("summary"):
+            summ, summ_src = prev["summary"], prev.get("summary_src", "llm")
+        elif args.no_llm:
+            summ, summ_src = summary.fallback(facts), "rule"
+        else:
+            summ, summ_src = summary.summarize(facts)
+        summ = agree(summ, plurals)
         doc = {"id": g.game_id, "season": args.season, "week": week, "away": a_, "home": h_, "kicker": kicker,
-               "kickoff": kickoff(g), "primetime": prime, "line": ln, "leverage": lv, "summary": summ,
+               "kickoff": kickoff(g), "primetime": prime, "line": ln, "leverage": lv, "summary": summ, "summary_src": summ_src, "summary_hash": fh,
                "keys": keys, "heat": heat, "team_cards": team_cards, "player_cards": player_cards,
                "team_n": team_n, "player_n": player_n, "built": built, "after_kickoff": started, "line_asof": ln_asof, "line_now": ln_now,
                "model": ({"p_home": mp["p_home"], "margin": mp["margin"], "market": mp["market"],
