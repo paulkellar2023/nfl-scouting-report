@@ -366,55 +366,59 @@ def luck_card(lk, a, b, M, game):
 
 # ---------- selection ----------
 
-def select(cards, lo, hi, teams):
+def select(cards, lo, hi, teams, cap=10):
+    """Ranked list of up to `cap` cards plus `n`, the default count shown (lo..hi, soft score floor)."""
     cards = sorted([c for c in cards if c], key=lambda c: -c["score"])
     out, per_phase, seen = [], {}, set()
     for c in cards:
         base = c["id"].split(":")[0]
         if base in seen or per_phase.get(c["phase"], 0) >= MAX_CARDS_PER_PHASE:
             continue
-        if len(out) >= lo and c["score"] < SOFT_SCORE_FLOOR:
-            break
         out.append(c)
         seen.add(base)
         per_phase[c["phase"]] = per_phase.get(c["phase"], 0) + 1
-        if len(out) >= hi:
+        if len(out) >= cap:
             break
+    n = 0
+    for i, c in enumerate(out):
+        if i >= hi or (i >= lo and c["score"] < SOFT_SCORE_FLOOR):
+            break
+        n = i + 1
     for t in teams:
-        if out and not any(c["owner"] == t for c in out):
-            bases = {x["id"].split(":")[0] for x in out}
-            alt = next((c for c in cards if c["owner"] == t and c["id"].split(":")[0] not in bases
-                        and c["score"] > 0.5), None)
-            if alt:
-                if len(out) < hi:
-                    out.append(alt)
+        if n and not any(c["owner"] == t for c in out[:n]):
+            j = next((j for j in range(n, len(out)) if out[j]["owner"] == t and out[j]["score"] > 0.5), None)
+            if j is not None:
+                c = out.pop(j)
+                if n < hi:
+                    out.insert(n, c)
+                    n += 1
                 else:
-                    out[-1] = alt
-    return out
+                    out.insert(n - 1, c)
+    return out, n
 
 
 def keys_for(team, cands, specials, M):
+    """Top 3 keys by |edge|, at most one per phase so correlated stats (pressure, four-man rush) don't repeat."""
     rows = []
     for c in cands:
         if team in (c["a"], c["b"]):
-            rows.append((abs(c["edge"]), c["id"], key_line(c, team, M)))
+            rows.append((abs(c["edge"]), c["phase"], key_line(c, team, M)))
     for s in specials:
         if s and "_key" in s and team in s["_key"]:
             ph, det = s["_key"][team]
-            fav = (s["owner"] == team)
-            rows.append((abs(s["edge"] or 0), s["id"].split(":")[0], {"phrase": ph, "detail": det, "favorable": fav,
-                                                                      "id": s["id"].split(":")[0]}))
+            rows.append((abs(s["edge"] or 0), s["phase"], {"phrase": ph, "detail": det, "favorable": s["owner"] == team,
+                                                           "id": s["id"].split(":")[0]}))
     rows.sort(key=lambda r: -r[0])
-    out, seen = [], set()
-    for _, i, k in rows:
-        if i in seen:
+    out, phases = [], []
+    for _, ph, k in rows:
+        if ph in phases:
             continue
-        seen.add(i)
+        phases.append(ph)
         out.append(k)
         if len(out) == 3:
             break
     if out and not any(k["favorable"] for k in out):
-        fav = next((k for e, i, k in rows if k["favorable"] and e > 0.5 and i not in {x["id"] for x in out}), None)
+        fav = next((k for e, ph, k in rows if k["favorable"] and e > 0.5 and ph not in phases[:-1]), None)
         if fav:
             out[-1] = fav
     return out

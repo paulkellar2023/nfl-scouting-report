@@ -40,6 +40,15 @@ cd site && python -m http.server 8000         # open http://localhost:8000
 - **Edge score:** z(offense) + z(opposing defense), oriented so positive = offense edge. A z-score is the shrunk deviation over the raw spread, so noisy stats score lower. Tendency cards scale the edge by how often the choosing side does the thing. Gap cards take the best of 7 gaps, so they pay a penalty (`GAP_MAX_PENALTY`).
 - **Leverage:** 10,000-run Monte Carlo of the rest of the season. Market spread for this week, regressed EPA ratings after. Tiebreakers are approximate (wins, division wins, coin flip).
 
+## Win-probability model ("our number vs. the market")
+
+Not betting advice. A ridge regression on home margin, then P(home win) = Phi(margin / sigma).
+- **Features (home minus away), all walk-forward:** passing matchup and rushing matchup (opponent-adjusted EPA, offense vs. the other defense), starting QB value (EPA per dropback shrunk toward replacement), offensive and defensive injury load (Out/Doubtful/Questionable weighted by recent snap share), rest. Home field is the only unpenalized term.
+- **Fit:** alpha by leave-one-season-out, sigma by log loss. Seasons from `MODEL_FIRST_SEASON` (2016). Completed seasons are cached in `model/cache/`.
+- **Factor chart:** the model is linear, so each factor's contribution (beta x standardized value, in points) is its exact SHAP value. The contributions sum to the projected margin.
+- **Backtest:** each season is predicted with a model trained only on earlier seasons, scored by Brier and log loss against the closing line (`site/data/<season>/wkNN/model_meta.json`).
+- **Schedule:** Thursday (scouting report + Thursday line snapshot), Saturday and Sunday mornings (model refresh with newer injury statuses). The scouting header keeps the Thursday line. The model compares against the line at build time.
+
 ## Data sources
 
 All through `nflreadpy`: play-by-play, schedules (lines), teams, rosters, participation (pressure, man/zone, coverage shell) and FTN charting (play action, motion, blitzers, rushers, interception-worthy throws). The pipeline checks each optional source and turns off any card whose fields are missing. The `flags` object in each `games.json` shows what was available.

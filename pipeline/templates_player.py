@@ -287,15 +287,17 @@ class Cards:
                           f"Shrunk to league mean · {short_name(nm)}: n={int(ty.loc[own, 'n'])} catches")
 
 
-def select(cards, lo, hi):
+def select(cards, lo, hi, cap=10):
+    """Default picks first (max 3 QB cards), then the rest by score. Returns (cards, default count)."""
     cards = sorted([c for c in cards if c], key=lambda c: -c["score"])
-    out, qb = [], 0
+    top, qb = [], 0
     for c in cards:
         is_qb = c["id"].startswith("qb_")
         if is_qb and qb >= 3:
             continue
-        out.append(c)
+        top.append(c)
         qb += is_qb
-        if len(out) >= hi:
+        if len(top) >= hi:
             break
-    return out[:max(lo, len(out))]
+    rest = [c for c in cards if c not in top]
+    return (top + rest)[:cap], len(top)

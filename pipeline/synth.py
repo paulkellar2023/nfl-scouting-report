@@ -255,7 +255,7 @@ def load(season=2026, target_week=12, seed=11):
     benched = teams[int(rng.integers(0, 32))]
     inj[benched] = (8, 99)
     out = {"pbp": [], "ftn": [], "part": []}
-    rating = {t: 2.5 * (P[t]["pass_off"] + 0.5 * P[t]["rush_off"] - P[t]["pass_def"] - 0.5 * P[t]["rush_def"]) for t in teams}
+    rating = {t: 2.5 * (P[t]["pass_off"] + 0.5 * P[t]["rush_off"] + P[t]["pass_def"] + 0.5 * P[t]["rush_def"]) for t in teams}
     for c in ["away_score", "home_score", "result", "total", "spread_line", "total_line",
               "away_moneyline", "home_moneyline"]:
         sched[c] = np.nan
@@ -284,3 +284,42 @@ def load(season=2026, target_week=12, seed=11):
                               "team_logo_espn": espn_logo(t)} for t, v in TEAMS.items()])
     return {"pbp": pd.DataFrame(out["pbp"]), "sched": sched, "teams": teams_df, "rosters": rosters,
             "part": pd.DataFrame(out["part"]), "ftn": pd.DataFrame(out["ftn"]), "synthetic": True}
+
+
+ROLE_SNAP = {"QB1": ("off", 1.0), "RB1": ("off", 0.62), "RB2": ("off", 0.38), "WR1": ("off", 0.92), "WR2": ("off", 0.85),
+             "WR3": ("off", 0.6), "TE1": ("off", 0.78), "DL1": ("def", 0.8), "LB1": ("def", 0.95), "CB1": ("def", 0.97),
+             "S1": ("def", 0.99)}
+
+
+def load_history(seasons, target_season, target_week, seed=11):
+    """Several synthetic seasons plus synthetic injuries, snap counts and player id map."""
+    parts = [load(s, target_week if s == target_season else 19, seed + (s - target_season)) for s in seasons]
+    rng = np.random.default_rng(seed)
+    pbp = pd.concat([p["pbp"] for p in parts], ignore_index=True)
+    sched = pd.concat([p["sched"] for p in parts], ignore_index=True)
+    sched["home_rest"] = rng.choice([6, 7, 7, 7, 10, 13], len(sched))
+    sched["away_rest"] = rng.choice([6, 7, 7, 7, 10, 13], len(sched))
+    sched["location"] = "Home"
+    inj, snaps, players = [], [], []
+    for t in TEAMS:
+        for role, (side, pct) in ROLE_SNAP.items():
+            pid = f"00-SYN{t:>3}{role}".replace(" ", "X")
+            players.append({"gsis_id": pid, "pfr_id": "pfr" + pid, "display_name": f"{t} {role}", "position": role[:2]})
+    pl = {p["gsis_id"]: p for p in players}
+    for _, g in sched[sched["result"].notna() | (sched["week"] == target_week)].iterrows():
+        for t, opp in ((g.home_team, g.away_team), (g.away_team, g.home_team)):
+            for role, (side, pct) in ROLE_SNAP.items():
+                pid = f"00-SYN{t:>3}{role}".replace(" ", "X")
+                if g.week < target_week or g.season < target_season:
+                    v = float(np.clip(rng.normal(pct, 0.05), 0, 1))
+                    snaps.append({"season": g.season, "game_type": "REG", "week": g.week, "pfr_player_id": "pfr" + pid,
+                                  "player": f"{t} {role}", "team": t, "offense_pct": v if side == "off" else 0.0,
+                                  "defense_pct": v if side == "def" else 0.0})
+                if role != "QB1" and rng.random() < 0.08:
+                    inj.append({"season": g.season, "game_type": "REG", "week": g.week, "team": t, "gsis_id": pid,
+                                "full_name": f"{t} {role}", "position": pl[pid]["position"],
+                                "report_status": rng.choice(["Out", "Doubtful", "Questionable"], p=[0.5, 0.15, 0.35])})
+    return {"pbp": pbp, "sched": sched, "teams": parts[-1]["teams"], "rosters": parts[-1]["rosters"],
+            "part": parts[-1]["part"], "ftn": parts[-1]["ftn"], "injuries": pd.DataFrame(inj),
+            "snaps": pd.DataFrame(snaps), "players": pd.DataFrame(players), "synthetic": True,
+            "cur_pbp": parts[-1]["pbp"], "cur_sched": parts[-1]["sched"]}

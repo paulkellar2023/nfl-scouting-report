@@ -2,8 +2,10 @@ name: weekly-build
 
 on:
   schedule:
-    # GitHub cron is UTC. 13:37 UTC = 8:37 AM ET in standard time (Nov-Mar), 9:37 AM ET in daylight time.
-    - cron: "37 13 * * 4"
+    # GitHub cron is UTC. Add 1 hour to the ET times below during daylight time (Sep-Oct).
+    - cron: "37 13 * * 4"   # Thu 8:37 AM ET: scouting report, Thursday line snapshot, model (TNF statuses final)
+    - cron: "37 14 * * 6"   # Sat 9:37 AM ET: model refresh with Friday final statuses (Sun games, Sat games)
+    - cron: "37 14 * * 0"   # Sun 9:37 AM ET: model refresh before Sunday games (MNF statuses final Sat)
   workflow_dispatch:
     inputs:
       week:
@@ -48,7 +50,9 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add site/data site/assets 2>/dev/null || git add site/data
+          git add site/data
+          git add site/assets 2>/dev/null || true
+          git add model 2>/dev/null || true
           git diff --cached --quiet || git commit -m "Weekly report $(date -u +%Y-%m-%d)"
           git push
       - uses: actions/configure-pages@v5

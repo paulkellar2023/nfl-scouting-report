@@ -22,7 +22,6 @@ def fetch(url, path):
 
 
 def download(site, meta, heads, need_heads):
-    for ab, m in meta.items():
-        fetch(m.get("logo_url"), Path(site) / m["logo"])
-    for pid in need_heads:
-        fetch(heads.get(pid), Path(site) / "assets" / "heads" / f"{pid}.png")
+    ok_logos = sum(fetch(m.get("logo_url"), Path(site) / m["logo"]) for m in meta.values())
+    ok_heads = sum(fetch(heads.get(pid), Path(site) / "assets" / "heads" / f"{pid}.png") for pid in need_heads)
+    log.info("assets: %d/%d logos, %d/%d headshots", ok_logos, len(meta), ok_heads, len(need_heads))

@@ -1,5 +1,5 @@
 "use strict";
-const S = { idx: null, teams: {}, week: null, games: null, ok: {}, handle: "@yourhandle" };
+const S = { idx: null, teams: {}, week: null, games: null, ok: {}, handle: "" };
 const NS = "http://www.w3.org/2000/svg";
 const W = 1000, H = 660;
 const $ = (s, el = document) => el.querySelector(s);
@@ -60,9 +60,10 @@ function preload(urls) {
     i.onload = () => done(true); i.onerror = () => done(false); setTimeout(() => done(false), 4000); i.src = u;
   })));
 }
+function logoSrc(m) { return S.ok[m.logo] ? m.logo : S.ok[m.logo_url] ? m.logo_url : null; }
 function logoHTML(t, cls = "") {
-  const m = T(t);
-  return S.ok[m.logo] ? `<img class="${cls}" src="${m.logo}" alt="${esc(m.name || t)} logo">`
+  const m = T(t), src = logoSrc(m);
+  return src ? `<img class="${cls}" src="${src}" alt="${esc(m.name || t)} logo">`
     : `<span class="fb ${cls}" style="background:${m.color}" role="img" aria-label="${esc(m.name || t)}">${t}</span>`;
 }
 
@@ -71,7 +72,8 @@ function logo(g, team, cx, cy, size, { hl = false, dim = false } = {}) {
   const m = T(team), grp = el("g", {}, g);
   if (hl) el("circle", { cx, cy, r: size / 2 + 5, fill: "#F4F4F2", stroke: m.accent, "stroke-width": 4 }, grp);
   const s = hl ? size * 0.74 : size;
-  if (S.ok[m.logo]) el("image", { href: m.logo, x: cx - s / 2, y: cy - s / 2, width: s, height: s, preserveAspectRatio: "xMidYMid meet" }, grp);
+  const src = logoSrc(m);
+  if (src) el("image", { href: src, x: cx - s / 2, y: cy - s / 2, width: s, height: s, preserveAspectRatio: "xMidYMid meet" }, grp);
   else {
     el("circle", { cx, cy, r: s / 2.2, fill: m.color || "#555", stroke: hl ? "none" : "#0B0B0C", "stroke-width": 2 }, grp);
     txt(grp, cx, cy + s * 0.11, team, { "text-anchor": "middle", "font-size": s * 0.3, "font-weight": 900, fill: "#fff" });
@@ -340,17 +342,144 @@ function pstrip(c) {
   txt(svg, (box.l + box.r) / 2, 590, c.axis, { "text-anchor": "middle", "font-size": 22, "font-weight": 900, fill: C.title });
   return svg;
 }
-const CHARTS = { scatter, pscatter, duel, bars, gaps, splits, trend, pstrip };
+
+/* ---------- model charts ---------- */
+function probbars(c) {
+  const svg = newSvg(380), l = 150, r = W - 30, A = T(c.away), Hm = T(c.home);
+  logo(svg, c.away, l + 26, 40, 46, {}); logo(svg, c.home, r - 26, 40, 46, {});
+  txt(svg, l + 60, 50, A.nick.toUpperCase(), { "font-size": 22, "font-weight": 900, fill: A.accent });
+  txt(svg, r - 60, 50, Hm.nick.toUpperCase(), { "text-anchor": "end", "font-size": 22, "font-weight": 900, fill: Hm.accent });
+  c.rows.forEach((row, i) => {
+    const y = 110 + i * 130, X = lin(0, 1, l, r), xa = X(1 - row.p);
+    txt(svg, l - 18, y + 52, row.label, { "text-anchor": "end", "font-size": 24, "font-weight": 900, fill: C.title });
+    el("rect", { x: l, y, width: xa - l, height: 80, fill: A.accent, opacity: i ? 0.5 : 1 }, svg);
+    el("rect", { x: xa, y, width: r - xa, height: 80, fill: Hm.accent, opacity: i ? 0.5 : 1 }, svg);
+    el("line", { x1: xa, x2: xa, y1: y - 8, y2: y + 88, stroke: "#0B0B0C", "stroke-width": 4 }, svg);
+    txt(svg, l + 14, y + 54, fmt(1 - row.p, "pct"), { "font-size": 44, style: "font-family:var(--num)", "font-weight": 600, fill: "#0B0B0C" });
+    txt(svg, r - 14, y + 54, fmt(row.p, "pct"), { "text-anchor": "end", "font-size": 44, style: "font-family:var(--num)", "font-weight": 600, fill: "#0B0B0C" });
+  });
+  dashed(svg, lin(0, 1, l, r)(0.5), 96, lin(0, 1, l, r)(0.5), 360);
+  return svg;
+}
+function waterfall(c) {
+  const rows = [...c.items, { label: "PROJECTED MARGIN", pts: c.total, total: true }];
+  const h = 90 + rows.length * 66, svg = newSvg(h), l = 300, r = W - 90;
+  let run = 0; const spans = rows.map(it => { if (it.total) return [0, it.pts]; const s0 = run; run += it.pts; return [s0, run]; });
+  const ext = Math.max(2, ...spans.flat().map(Math.abs)) * 1.15, X = lin(-ext, ext, l, r);
+  el("line", { x1: X(0), x2: X(0), y1: 40, y2: h - 20, stroke: "#55555B", "stroke-width": 2 }, svg);
+  txt(svg, l, 30, "← " + T(c.away).nick.toUpperCase(), { "font-size": 18, "font-weight": 900, fill: T(c.away).accent, "letter-spacing": ".08em" });
+  txt(svg, r, 30, T(c.home).nick.toUpperCase() + " →", { "text-anchor": "end", "font-size": 18, "font-weight": 900, fill: T(c.home).accent, "letter-spacing": ".08em" });
+  rows.forEach((it, i) => {
+    const y = 60 + i * 66, [a, b] = spans[i], col = (it.total ? it.pts : it.pts) >= 0 ? T(c.home).accent : T(c.away).accent;
+    txt(svg, l - 18, y + 33, it.total ? it.label : it.label.toUpperCase(), { "text-anchor": "end", "font-size": 21, "font-weight": it.total ? 900 : 800, fill: it.total ? "#F4F4F2" : C.title });
+    el("rect", { x: Math.min(X(a), X(b)), y: y + 6, width: Math.max(3, Math.abs(X(b) - X(a))), height: 40, fill: col, opacity: it.total ? 1 : 0.85 }, svg);
+    if (i < rows.length - 1 && !rows[i + 1].total) el("line", { x1: X(b), x2: X(b), y1: y + 46, y2: y + 72, stroke: "#6B6B70", "stroke-width": 1.5, "stroke-dasharray": "3 3" }, svg);
+    txt(svg, W - 10, y + 36, (it.pts > 0 ? "+" : it.pts < 0 ? MINUS : "") + Math.abs(it.pts).toFixed(1),
+      { "text-anchor": "end", "font-size": 28, style: "font-family:var(--num)", "font-weight": 600, fill: col });
+  });
+  return svg;
+}
+function dist(c) {
+  const svg = newSvg(560), box = { l: 60, r: W - 40, t: 60, b: 470 };
+  const lo = Math.min(c.mu - 3.2 * c.sigma, c.market ?? 0, -5), hi = Math.max(c.mu + 3.2 * c.sigma, c.market ?? 0, 5);
+  const X = lin(lo, hi, box.l, box.r), pdf = x => Math.exp(-0.5 * ((x - c.mu) / c.sigma) ** 2), Y = lin(0, 1.08, box.b, box.t);
+  const pts = []; for (let i = 0; i <= 160; i++) { const x = lo + (hi - lo) * i / 160; pts.push([x, pdf(x)]); }
+  const area = (pred, col) => {
+    const seg = pts.filter(p => pred(p[0])); if (!seg.length) return;
+    el("path", { d: `M${X(seg[0][0])},${Y(0)} ` + seg.map(p => `L${X(p[0])},${Y(p[1])}`).join(" ") + ` L${X(seg[seg.length - 1][0])},${Y(0)} Z`, fill: col, opacity: 0.45 }, svg);
+  };
+  area(x => x <= 0, T(c.away).accent); area(x => x >= 0, T(c.home).accent);
+  el("polyline", { points: pts.map(p => `${X(p[0])},${Y(p[1])}`).join(" "), fill: "none", stroke: "#F4F4F2", "stroke-width": 3 }, svg);
+  el("line", { x1: box.l, x2: box.r, y1: Y(0), y2: Y(0), stroke: "#55555B", "stroke-width": 2 }, svg);
+  const xt = nice(lo, hi, 8);
+  for (const v of xt.ticks) txt(svg, X(v), box.b + 36, (v > 0 ? "+" : v < 0 ? MINUS : "") + Math.abs(v), { "text-anchor": "middle", "font-size": 22, "font-weight": 300, fill: C.tick });
+  txt(svg, (box.l + box.r) / 2, box.b + 76, `${T(c.home).nick.toUpperCase()} MARGIN (POINTS)`, { "text-anchor": "middle", "font-size": 22, "font-weight": 900, fill: C.title });
+  el("line", { x1: X(c.mu), x2: X(c.mu), y1: Y(0), y2: Y(1.02), stroke: "#F4F4F2", "stroke-width": 3 }, svg);
+  txt(svg, X(c.mu), Y(1.02) - 12, "MODEL", { "text-anchor": "middle", "font-size": 18, "font-weight": 900, fill: "#F4F4F2" });
+  if (c.market !== null && c.market !== undefined) {
+    el("line", { x1: X(c.market), x2: X(c.market), y1: Y(0), y2: Y(0.86), stroke: "#F2B33D", "stroke-width": 3, "stroke-dasharray": "8 6" }, svg);
+    txt(svg, X(c.market), Y(0.86) - 12, "MARKET", { "text-anchor": "middle", "font-size": 18, "font-weight": 900, fill: "#F2B33D" });
+  }
+  return svg;
+}
+function injuries(c) {
+  const n = Math.max(1, ...c.teams.map(t => t.rows.length)), h = 110 + n * 58, svg = newSvg(h), cw = (W - 40) / 2;
+  c.teams.forEach((tm, j) => {
+    const x0 = 20 + j * cw, m = T(tm.team);
+    logo(svg, tm.team, x0 + 24, 36, 42, {});
+    txt(svg, x0 + 56, 46, m.nick.toUpperCase(), { "font-size": 24, "font-weight": 900, fill: m.accent });
+    if (!tm.rows.length) txt(svg, x0, 110, "No listed absences", { "font-size": 22, "font-weight": 300, fill: C.sub });
+    tm.rows.forEach((r, i) => {
+      const y = 90 + i * 58, bw = (cw - 60) * Math.min(1, r.weight);
+      el("rect", { x: x0, y: y + 30, width: cw - 60, height: 10, fill: "#1E1E23", rx: 5 }, svg);
+      el("rect", { x: x0, y: y + 30, width: Math.max(4, bw), height: 10, fill: m.accent, rx: 5, opacity: r.status === "Questionable" ? 0.5 : 1 }, svg);
+      txt(svg, x0, y + 20, r.name, { "font-size": 21, "font-weight": 800, fill: "#F4F4F2" });
+      txt(svg, x0 + cw - 60, y + 20, `${r.pos} · ${r.status.toUpperCase()} · ${r.side === "off" ? "O" : "D"}`, { "text-anchor": "end", "font-size": 16, "font-weight": 800, fill: C.sub, "letter-spacing": ".05em" });
+    });
+  });
+  return svg;
+}
+function units(c) {
+  const svg = newSvg(560), l = 230, r = W - 50;
+  const vals = c.rows.flatMap(x => [x[c.home], x[c.away]]), ext = Math.max(0.05, ...vals.map(Math.abs)) * 1.2, X = lin(-ext, ext, l, r);
+  dashed(svg, X(0), 20, X(0), 400);
+  txt(svg, X(0), 14, "LEAGUE AVG", { "text-anchor": "middle", "font-size": 16, "font-weight": 800, fill: C.quad });
+  txt(svg, r, 14, "BETTER →", { "text-anchor": "end", "font-size": 16, "font-weight": 800, fill: "#6E6E75", "letter-spacing": ".1em" });
+  c.rows.forEach((row, i) => {
+    const y = 70 + i * 88, xa = X(row[c.away]), xh = X(row[c.home]);
+    txt(svg, l - 24, y + 8, row.label, { "text-anchor": "end", "font-size": 21, "font-weight": 900, fill: C.title });
+    el("line", { x1: xa, x2: xh, y1: y, y2: y, stroke: "#4A4A50", "stroke-width": 6, "stroke-linecap": "round" }, svg);
+    logo(svg, c.away, xa, y, 46, { hl: false }); logo(svg, c.home, xh, y, 46, { hl: false });
+  });
+  c.qb.forEach((q, j) => {
+    const x = j ? W - 40 : 40, m = T(q.team);
+    txt(svg, x, 470, `${m.nick.toUpperCase()} QB`, { "text-anchor": j ? "end" : "start", "font-size": 18, "font-weight": 800, fill: C.sub, "letter-spacing": ".08em" });
+    txt(svg, x, 512, q.name, { "text-anchor": j ? "end" : "start", "font-size": 30, "font-weight": 900, fill: m.accent });
+    txt(svg, x, 548, `${fmt(q.v, "epa")} EPA/dropback (shrunk)`, { "text-anchor": j ? "end" : "start", "font-size": 22, "font-weight": 300, fill: C.sub });
+  });
+  return svg;
+}
+function calib(c) {
+  const svg = newSvg(600), box = { l: 120, r: 560, t: 30, b: 470 }, X = lin(0, 1, box.l, box.r), Y = lin(0, 1, box.b, box.t);
+  for (const v of [0, 0.25, 0.5, 0.75, 1]) {
+    el("line", { x1: X(v), x2: X(v), y1: box.t, y2: box.b, stroke: C.grid }, svg); el("line", { x1: box.l, x2: box.r, y1: Y(v), y2: Y(v), stroke: C.grid }, svg);
+    txt(svg, X(v), box.b + 32, Math.round(v * 100) + "%", { "text-anchor": "middle", "font-size": 20, "font-weight": 300, fill: C.tick });
+    txt(svg, box.l - 12, Y(v) + 7, Math.round(v * 100) + "%", { "text-anchor": "end", "font-size": 20, "font-weight": 300, fill: C.tick });
+  }
+  el("line", { x1: X(0), y1: Y(0), x2: X(1), y2: Y(1), stroke: "#BDBDBD", "stroke-width": 2, "stroke-dasharray": "10 8" }, svg);
+  const mx = Math.max(1, ...c.pts.map(p => p.n));
+  for (const p of c.pts) el("circle", { cx: X(p.pred), cy: Y(p.obs), r: 7 + 14 * Math.sqrt(p.n / mx), fill: "#F2B33D", opacity: 0.85 }, svg);
+  txt(svg, (box.l + box.r) / 2, box.b + 72, "MODEL WIN PROBABILITY", { "text-anchor": "middle", "font-size": 20, "font-weight": 900, fill: C.title });
+  const g = el("g", { transform: `translate(40,${(box.t + box.b) / 2}) rotate(-90)` }, svg);
+  txt(g, 0, 0, "ACTUAL WIN RATE", { "text-anchor": "middle", "font-size": 20, "font-weight": 900, fill: C.title });
+  const sx = 640, sr = W - 30, bs = c.seasons, all = bs.flatMap(s => [s.model_brier, s.mkt_brier]);
+  const lo = Math.min(...all) - 0.005, hi = Math.max(...all) + 0.005, BX = lin(lo, hi, sx + 70, sr), rh = Math.min(48, 420 / Math.max(1, bs.length));
+  txt(svg, sx, 20, "BRIER BY SEASON", { "font-size": 18, "font-weight": 900, fill: C.title, "letter-spacing": ".06em" });
+  el("circle", { cx: sx + 8, cy: 46, r: 7, fill: "#F2B33D" }, svg); txt(svg, sx + 22, 52, "Model", { "font-size": 17, fill: C.sub });
+  el("circle", { cx: sx + 100, cy: 46, r: 7, fill: "none", stroke: "#F4F4F2", "stroke-width": 2.5 }, svg); txt(svg, sx + 114, 52, "Market", { "font-size": 17, fill: C.sub });
+  bs.forEach((s, i) => {
+    const y = 90 + i * rh;
+    txt(svg, sx, y + 6, String(s.season), { "font-size": 18, "font-weight": 800, fill: C.tick });
+    el("line", { x1: BX(s.model_brier), x2: BX(s.mkt_brier), y1: y, y2: y, stroke: "#4A4A50", "stroke-width": 3 }, svg);
+    el("circle", { cx: BX(s.mkt_brier), cy: y, r: 7, fill: "#0B0B0C", stroke: "#F4F4F2", "stroke-width": 2.5 }, svg);
+    el("circle", { cx: BX(s.model_brier), cy: y, r: 7, fill: "#F2B33D" }, svg);
+  });
+  txt(svg, (sx + 70 + sr) / 2, 90 + bs.length * rh + 24, "← BETTER (LOWER)", { "text-anchor": "middle", "font-size": 15, "font-weight": 800, fill: "#6E6E75", "letter-spacing": ".08em" });
+  return svg;
+}
+const CHARTS = { scatter, pscatter, duel, bars, gaps, splits, trend, pstrip, probbars, waterfall, dist, injuries, units, calib };
+
 
 /* ---------- card ---------- */
 function cardEl(c, g) {
   const m = T(c.owner), card = h("article", { class: "card", style: `--acc:${m.accent}` });
   card.innerHTML = `<div class="top"><div class="kicker">${esc(g.kicker)}</div>
-    <div class="logos">${logoHTML(g.away)}${logoHTML(g.home)}</div></div>
+    <div class="logos">${logoHTML(g.away)}${logoHTML(g.home)}
+      <button type="button" class="info" aria-label="Source and notes" data-tip="SOURCE: ${esc(c.source)} · ${esc(c.note)}">i</button></div></div>
     <h3 class="t1">${esc(c.t1)}</h3><h3 class="t2">${esc(c.t2)}</h3>
     <p class="sub">${esc(c.sub)}</p>
     <div class="chart"></div>
-    <div class="foot"><small><b>SOURCE: ${esc(c.source)}</b> &middot; ${esc(c.note)}</small><strong>${esc(S.handle)}</strong></div>
+    <div class="foot"><small><b>SOURCE: ${esc(c.source)}</b> &middot; ${esc(c.note)}</small>${S.handle ? `<strong>${esc(S.handle)}</strong>` : ""}</div>
     <div class="card-actions"><button type="button" data-act="png">PNG</button><button type="button" data-act="link">LINK</button></div>`;
   const f = CHARTS[c.chart.type];
   if (f) $(".chart", card).appendChild(f(c.chart));
@@ -372,7 +501,7 @@ async function exportPng(card, c) {
       h2i = window.htmlToImage;
     }
     const stage = h("div", { class: "export-stage" }), clone = card.cloneNode(true);
-    clone.querySelector(".card-actions").remove(); clone.style.animation = "none"; clone.style.borderRadius = "0"; clone.style.border = "0";
+    clone.querySelector(".card-actions").remove(); clone.querySelector(".info")?.remove(); clone.classList.add("exporting"); clone.style.animation = "none"; clone.style.borderRadius = "0"; clone.style.border = "0";
     stage.appendChild(clone); document.body.appendChild(stage);
     const url = await h2i.toPng(clone, { pixelRatio: 2, backgroundColor: "#0B0B0C", width: 1080 });
     stage.remove();
@@ -405,6 +534,7 @@ function board() {
       <span class="at">at</span><div class="team home">${logoHTML(g.home)}<div><b>${esc(hm.nick)}</b><small>${g.home}</small></div></div></div>
       <div class="line">${g.line ? esc(g.line.text) : "Line pending"}<span>${esc(imp)}</span></div>
       ${heatHTML(g.heat, g.away, g.home)}
+      ${g.model ? `<div class="mline"><span>MODEL</span><b>${g.home} ${Math.round(g.model.p_home * 100)}%</b>${g.model.mkt !== null ? `<span>MKT</span><b>${g.home} ${Math.round(g.model.mkt * 100)}%</b>` : ""}</div>` : ""}
       ${g.tease ? `<p class="tease">${esc(g.tease[0])}<span>${esc(g.tease[1])}</span></p>` : ""}
       <div class="lev" title="Playoff leverage"><i style="width:${(g.leverage / maxLev) * 100}%"></i></div>`;
     grid.appendChild(tile);
@@ -422,7 +552,7 @@ async function matchup(id, tab, focus) {
   app.innerHTML = `<section class="hero" style="--a:${a.accent};--h:${hm.accent}">
       <div class="side">${logoHTML(g.away)}<div><h2>${esc(a.nick)}</h2><small>${esc(a.name)}</small></div></div>
       <div class="mid"><div class="k">${esc(g.kickoff)}${g.primetime ? " · PRIMETIME" : ""}</div>
-        <div class="ln">${g.line ? esc(g.line.text) : "Line pending"}</div><div class="imp">${esc(imp)}</div>
+        <div class="ln">${g.line ? esc(g.line.text) : "Line pending"}</div><div class="imp">${esc(imp)}${g.line_asof ? ` · line as of ${esc(g.line_asof.slice(5, 10).replace("-", "/"))}` : ""}</div>
         <div class="stakes">${stake(g.away)}${stake(g.home)}</div></div>
       <div class="side home">${logoHTML(g.home)}<div><h2>${esc(hm.nick)}</h2><small>${esc(hm.name)}</small></div></div>
     </section>
@@ -430,20 +560,31 @@ async function matchup(id, tab, focus) {
     <section class="keys">${[g.away, g.home].map(t => `<div class="keyset" style="--acc:${T(t).accent}">
       <h3>${logoHTML(t)}${esc(T(t).nick)}: 3 keys to success</h3><ol>${(g.keys[t] || []).map((k, i) => `<li><i>${i + 1}</i><div>
         <b>${esc(k.phrase)}<em class="${k.favorable ? "up" : "dn"}">${k.favorable ? "EDGE" : "WATCH"}</em></b><p>${esc(k.detail)}</p></div></li>`).join("")}</ol></div>`).join("")}</section>
-    <div class="tabs" role="tablist"><button role="tab" data-tab="team">TEAM</button><button role="tab" data-tab="players">PLAYERS</button></div>
+    <div class="tabs"><div role="tablist"><button role="tab" data-tab="team">TEAM</button><button role="tab" data-tab="players">PLAYERS</button>${(g.model_cards || []).length ? '<button role="tab" data-tab="model">MODEL</button>' : ""}</div>
+      <label class="topn">SHOW <select aria-label="How many cards to show"><option value="auto">Top picks</option><option value="10">Top 10</option></select></label></div>
     <div class="cards"></div>`;
+  const topSel = $(".topn select", app);
+  try { topSel.value = localStorage.getItem("topn") || "auto"; } catch (e) { /* storage blocked */ }
+  let cur = "team";
   const show = t => {
+    cur = t;
     app.querySelectorAll(".tabs button").forEach(b => b.setAttribute("aria-selected", String(b.dataset.tab === t)));
     const box = $(".cards", app); box.innerHTML = "";
-    const list = t === "players" ? g.player_cards : g.team_cards;
+    $(".topn", app).style.visibility = t === "model" ? "hidden" : "visible";
+    const all = t === "players" ? g.player_cards : t === "model" ? g.model_cards : g.team_cards;
+    const n = t === "model" ? all.length : topSel.value === "10" ? 10 : (t === "players" ? g.player_n : g.team_n) ?? all.length;
+    const list = all.slice(0, n);
+    if (t === "model" && g.model) box.insertAdjacentHTML("beforeend", `<p class="summary model-sum"><b>OUR NUMBER VS. THE MARKET</b>${esc(g.model.summary)}<span>A different lens on the data, not betting advice.</span></p>`);
     if (!list.length) box.innerHTML = '<p class="empty">No cards cleared the sample-size bar for this matchup.</p>';
     list.forEach((c, i) => { const e = cardEl(c, g); e.style.animationDelay = `${i * 60}ms`; box.appendChild(e); });
   };
+  topSel.onchange = () => { try { localStorage.setItem("topn", topSel.value); } catch (e) { /* storage blocked */ } show(cur); };
   app.querySelectorAll(".tabs button").forEach(b => b.onclick = () => {
-    show(b.dataset.tab); history.replaceState(null, "", `#/${G.season}/${G.week}/${id}` + (b.dataset.tab === "players" ? "?tab=players" : ""));
+    show(b.dataset.tab); history.replaceState(null, "", `#/${G.season}/${G.week}/${id}` + (b.dataset.tab !== "team" ? "?tab=" + b.dataset.tab : ""));
   });
+  if (focus && ![...g.team_cards.slice(0, g.team_n), ...g.player_cards.slice(0, g.player_n)].some(c => c.id === focus)) topSel.value = "10";
   const ftab = focus && [...g.player_cards].some(c => c.id === focus) ? "players" : tab;
-  show(ftab === "players" ? "players" : "team");
+  show(["players", "model"].includes(ftab) && (ftab !== "model" || (g.model_cards || []).length) ? ftab : "team");
   if (focus) { const e = document.getElementById("card-" + focus.replace(/[^a-z0-9]/gi, "-")); if (e) e.scrollIntoView({ block: "center" }); }
 }
 
@@ -453,6 +594,7 @@ async function loadWeek(season, week) {
   S.games = await getJSON(`data/${season}/wk${String(week).padStart(2, "0")}/games.json`);
   S.week = { season, week };
   await preload(Object.values(S.teams).map(t => t.logo));
+  await preload(Object.values(S.teams).filter(t => !S.ok[t.logo]).map(t => t.logo_url));
   const gs = $("#game-select");
   gs.innerHTML = `<option value="">All games (board)</option>` + S.games.games.map(g =>
     `<option value="${g.id}">${g.away} at ${g.home} · ${esc(g.kickoff.split(" · ")[0])}${g.primetime ? " · PRIME" : ""}</option>`).join("");
@@ -475,7 +617,7 @@ async function route() {
 async function init() {
   S.idx = await getJSON("data/index.json");
   S.teams = await getJSON("data/teams.json");
-  S.handle = S.idx.handle || S.handle;
+  S.handle = S.idx.handle || "";
   const ws = $("#week-select");
   ws.innerHTML = [...S.idx.weeks].reverse().map(w => `<option value="${w.season}/${w.week}">Week ${w.week}, ${w.season}${w.synthetic ? " (test)" : ""}</option>`).join("");
   ws.onchange = () => { location.hash = `#/${ws.value}`; };

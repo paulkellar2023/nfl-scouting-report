@@ -15,7 +15,7 @@
 html, body { margin: 0; background: var(--bg); color: var(--ink); font-family: var(--sans); }
 body { min-height: 100vh; display: flex; flex-direction: column; }
 a { color: inherit; }
-main { flex: 1; width: 100%; max-width: 1360px; margin: 0 auto; padding: 24px 16px 64px; }
+main { flex: 1; width: 100%; max-width: 1520px; margin: 0 auto; padding: 24px 16px 64px; }
 
 /* top bar */
 .bar { position: sticky; top: 0; z-index: 10; display: flex; align-items: center; justify-content: space-between;
@@ -74,6 +74,10 @@ main { flex: 1; width: 100%; max-width: 1360px; margin: 0 auto; padding: 24px 16
 .heat-row em { font: 600 14px var(--num); font-style: normal; text-align: right; color: var(--ink); }
 .tease { margin: 0; font-weight: 800; font-size: 15px; line-height: 1.3; }
 .tease span { display: block; color: var(--acc); }
+.mline { display: flex; gap: 8px; align-items: baseline; font-size: 11px; font-weight: 900; letter-spacing: .1em; color: var(--dim); }
+.mline b { font: 600 17px var(--num); color: var(--ink); letter-spacing: .02em; margin-right: 8px; }
+.model-sum { grid-column: 1 / -1; margin: 0; }
+.model-sum span { display: block; margin-top: 6px; font-size: 12px; color: var(--dim); }
 .lev { height: 4px; background: #1C1C21; border-radius: 2px; overflow: hidden; }
 .lev i { display: block; height: 100%; background: var(--brand); }
 
@@ -109,15 +113,17 @@ main { flex: 1; width: 100%; max-width: 1360px; margin: 0 auto; padding: 24px 16
 .keyset li b em.up { color: #0B0B0C; background: var(--acc); }
 .keyset li b em.dn { color: var(--mute); border: 1px solid var(--line); }
 .keyset li p { margin: 3px 0 0; color: var(--mute); font-size: 14px; line-height: 1.45; }
-.tabs { display: flex; gap: 6px; margin: 28px 0 14px; border-bottom: 1px solid var(--line); }
+.tabs { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 6px; margin: 28px 0 14px; border-bottom: 1px solid var(--line); }
 .tabs button { background: none; border: 0; color: var(--dim); font: 900 13px var(--sans); letter-spacing: .14em; padding: 10px 14px; cursor: pointer; border-bottom: 3px solid transparent; margin-bottom: -1px; }
 .tabs button[aria-selected="true"] { color: var(--ink); border-color: var(--brand); }
 .tabs button:focus-visible { outline: 2px solid var(--brand); }
-.cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 560px), 1fr)); gap: 16px; }
+.topn { display: flex; align-items: center; gap: 8px; font-size: 11px; font-weight: 900; letter-spacing: .14em; color: var(--dim); }
+.topn select { appearance: none; background: var(--panel-2); color: var(--ink); border: 1px solid var(--line); border-radius: 8px; padding: 6px 12px; font: 700 13px var(--sans); cursor: pointer; }
+.cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 640px), 1fr)); gap: 16px; }
 
 /* Ben-style card */
 .card { container-type: inline-size; position: relative; background: var(--bg); border: 1px solid var(--line); border-radius: 6px;
-  padding: 5.5cqi 6cqi 4cqi; animation: fadeup .5s ease both; }
+  padding: 4cqi 4.5cqi 3cqi; animation: fadeup .5s ease both; }
 .card .top { display: flex; justify-content: space-between; align-items: flex-start; gap: 3cqi; }
 .card .kicker { color: var(--acc); font-weight: 800; font-size: 2.6cqi; letter-spacing: .02em; text-transform: uppercase; }
 .card .logos { display: flex; gap: 1.6cqi; }
@@ -127,12 +133,22 @@ main { flex: 1; width: 100%; max-width: 1360px; margin: 0 auto; padding: 24px 16
 .card h3.t1 { margin-top: 2.6cqi; }
 .card h3.t2 { color: var(--acc); }
 .card .sub { margin: 1.8cqi 0 0; color: #C9C9C6; font-weight: 300; font-size: 2.7cqi; line-height: 1.5; }
-.card svg { display: block; width: 100%; height: auto; margin-top: 2cqi; overflow: visible; font-family: var(--sans); }
-.card .foot { display: flex; justify-content: space-between; align-items: center; gap: 3cqi; border-top: 1px solid #2B2B30; margin-top: 2.2cqi; padding-top: 2.2cqi; }
+.card svg { display: block; width: 100%; height: auto; margin-top: 1.5cqi; overflow: visible; font-family: var(--sans); }
+.card .foot { display: none; justify-content: space-between; align-items: center; gap: 3cqi; border-top: 1px solid #2B2B30; margin-top: 2.2cqi; padding-top: 2.2cqi; }
 .card .foot small { color: #8D8D92; font-size: 1.75cqi; line-height: 1.4; }
 .card .foot small b { font-weight: 600; letter-spacing: .03em; }
 .card .foot strong { font-weight: 800; font-size: 2.6cqi; white-space: nowrap; }
-.card-actions { position: absolute; top: 10px; right: 10px; display: flex; gap: 6px; opacity: 0; transition: opacity .15s ease; }
+.card.exporting { padding: 5.5cqi 6cqi 4cqi; }
+.card.exporting .foot { display: flex; }
+.card .logos { align-items: center; }
+.info { position: relative; width: 3.4cqi; height: 3.4cqi; min-width: 22px; min-height: 22px; border-radius: 50%; border: 1px solid #3A3A42;
+  background: transparent; color: var(--mute); font: italic 800 max(12px, 1.9cqi)/1 Georgia, serif; cursor: help; padding: 0; }
+.info:hover, .info:focus-visible { color: var(--ink); border-color: var(--acc); outline: none; }
+.info::after { content: attr(data-tip); position: absolute; right: 0; top: calc(100% + 8px); width: min(420px, 70vw); z-index: 5;
+  background: #1B1B20; border: 1px solid #34343C; border-radius: 8px; padding: 10px 12px; color: #C9C9C6; text-align: left;
+  font: 400 12px/1.45 var(--sans); letter-spacing: .02em; box-shadow: 0 8px 24px rgba(0,0,0,.5); opacity: 0; pointer-events: none; transition: opacity .15s ease; }
+.info:hover::after, .info:focus-visible::after { opacity: 1; }
+.card-actions { position: absolute; bottom: 10px; right: 10px; display: flex; gap: 6px; opacity: 0; transition: opacity .15s ease; }
 .card:hover .card-actions, .card:focus-within .card-actions { opacity: 1; }
 .card-actions button { background: rgba(23,23,27,.92); border: 1px solid var(--line); color: var(--ink); border-radius: 8px; padding: 6px 10px; font: 800 11px var(--sans); letter-spacing: .08em; cursor: pointer; }
 .card-actions button:hover { border-color: var(--brand); color: var(--brand); }

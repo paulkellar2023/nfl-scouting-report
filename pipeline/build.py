@@ -9,8 +9,9 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-from . import assets, clean, context, leverage, stats, story, summary, templates_player, templates_team
+from . import assets, clean, context, leverage, model, model_cards, stats, story, summary, templates_player, templates_team
 from .text import agree
+from .config import MODEL_FIRST_SEASON
 from .config import (HANDLE, MAX_PLAYER_CARDS, MAX_TEAM_CARDS, MIN_PLAYER_CARDS, MIN_TEAM_CARDS,
                      PRIMETIME_BONUS, SEASON, SITE_TITLE)
 
@@ -78,13 +79,22 @@ def main():
 
     if args.synthetic:
         from . import synth
-        raw = synth.load(args.season, args.week or 12)
+        hist = synth.load_history(list(range(args.season - 4, args.season + 1)), args.season, args.week or 12)
+        raw = {**hist, "pbp": hist["cur_pbp"], "sched": hist["cur_sched"]}
+        first = args.season - 3
     else:
         from . import load
         raw = load.load(args.season)
+        first = MODEL_FIRST_SEASON
     sched = raw["sched"]
     sched = sched[sched["season"] == args.season]
     week = args.week or detect_week(sched, args.season)
+    if not args.synthetic:
+        try:
+            hist = load.load_history(args.season, first, raw["pbp"], model.CACHE)
+        except Exception:
+            log.exception("history load failed; building without the model")
+            hist = None
     log.info("season %s target week %s", args.season, week)
     if week < 3:
         raise SystemExit("need at least 2 played weeks")
@@ -104,13 +114,28 @@ def main():
     luck = templates_team.luck_tables(plays) if flags["int_worthy"] else None
     ptabs = templates_player.build_tables(plays, flags)
 
+    preds, mmeta = {}, None
+    if hist is not None and hist.get("sched") is not None:
+        try:
+            preds, mmeta = model.run(hist, args.season, week, pctx["qb"], first)
+        except Exception:
+            log.exception("model failed; building without it")
+
     e = plays[plays["eff"]]
     o_all, d_all = stats.opp_adjust(e, "epa")
     lev = leverage.simulate(sched, M, week, leverage.ratings(o_all, d_all))
 
     site = Path(args.site)
     wdir = site / "data" / str(args.season) / f"wk{week:02d}"
+    prev_line = {}
     if wdir.exists():
+        for f in wdir.glob(f"{args.season}_*.json"):
+            try:
+                dd = json.loads(f.read_text())
+                if dd.get("line"):
+                    prev_line[dd["id"]] = (dd["line"], dd.get("line_asof", dd.get("built")))
+            except (ValueError, KeyError):
+                pass
         shutil.rmtree(wdir)
     built = dt.datetime.now(dt.timezone.utc).strftime("%Y-%m-%dT%H:%MZ")
     span = f"Weeks 1-{week - 1}, {args.season}" if week > 2 else f"Week 1, {args.season}"
@@ -132,9 +157,9 @@ def main():
                 specials.append(story.shell_card(shells, off, de, M, game))
         specials = [s for s in specials if s]
         ctxs = [story.form_card(form, a_, h_, M, game), story.luck_card(luck, a_, h_, M, game)]
-        team_cards = story.select(rendered + specials + [c for c in ctxs if c], MIN_TEAM_CARDS, MAX_TEAM_CARDS, (a_, h_))
+        team_cards, team_n = story.select(rendered + specials + [c for c in ctxs if c], MIN_TEAM_CARDS, MAX_TEAM_CARDS, (a_, h_))
         pc = templates_player.Cards(ptabs, pctx, M, tpls, game)
-        player_cards = templates_player.select(pc.all(a_, h_), MIN_PLAYER_CARDS, MAX_PLAYER_CARDS)
+        player_cards, player_n = templates_player.select(pc.all(a_, h_), MIN_PLAYER_CARDS, MAX_PLAYER_CARDS)
         keys = {t: story.keys_for(t, cands, specials, M) for t in (a_, h_)}
         heat = []
         for c in cands:
@@ -144,10 +169,13 @@ def main():
         heat.sort(key=lambda x: (x["team"] != a_, x["unit"]))
         lv = lev.get(g.game_id, {"leverage": 0.0, "by_team": {}, "p_playoffs": {}})
         prime = str(g.gametime) >= "19:00"
-        ln = line_info(g)
+        ln_now = line_info(g)
+        ln, ln_asof = prev_line.get(g.game_id, (ln_now, built))
+        mp = preds.get(g.game_id)
+        mcards = model_cards.build(mp, mmeta, M, pctx["names"]) if mp else []
         kicker = f"{M[a_]['nick']} at {M[h_]['nick']} · Week {week}, {args.season}".upper()
         plurals = [M[t]["label"] for t in (a_, h_) if M[t].get("plural")]
-        for c in team_cards + player_cards:
+        for c in team_cards + player_cards + mcards:
             c.pop("_key", None)
             for f in ("t1", "t2", "sub"):
                 c[f] = agree(c[f], plurals)
@@ -160,17 +188,24 @@ def main():
         summ = None if args.no_llm else summary.summarize(facts)
         doc = {"id": g.game_id, "season": args.season, "week": week, "away": a_, "home": h_, "kicker": kicker,
                "kickoff": kickoff(g), "primetime": prime, "line": ln, "leverage": lv, "summary": summ,
-               "keys": keys, "heat": heat, "team_cards": team_cards, "player_cards": player_cards, "built": built}
+               "keys": keys, "heat": heat, "team_cards": team_cards, "player_cards": player_cards,
+               "team_n": team_n, "player_n": player_n, "built": built, "line_asof": ln_asof, "line_now": ln_now,
+               "model": ({"p_home": mp["p_home"], "margin": mp["margin"], "market": mp["market"],
+                          "summary": agree(model_cards.summary(mp, M), plurals)} if mp else None),
+               "model_cards": mcards}
         _write(wdir / f"{g.game_id}.json", doc)
         board.append({"id": g.game_id, "away": a_, "home": h_, "kickoff": kickoff(g), "primetime": prime,
                       "line": ln, "leverage": lv["leverage"], "heat": heat,
+                      "model": {"p_home": mp["p_home"], "mkt": mp["market"]["p_home"]} if mp else None,
                       "rank": lv["leverage"] + (PRIMETIME_BONUS if prime else 0.0),
                       "tease": [team_cards[0]["t1"], team_cards[0]["t2"]] if team_cards else None,
                       "tease_owner": team_cards[0]["owner"] if team_cards else None})
     board.sort(key=lambda x: -x["rank"])
+    if mmeta:
+        _write(wdir / "model_meta.json", mmeta)
     _write(wdir / "games.json", {"season": args.season, "week": week, "built": built, "span": span,
                                  "synthetic": bool(raw.get("synthetic")), "flags": flags, "games": board})
-    _write(site / "data" / "teams.json", {k: {kk: v for kk, v in m.items() if kk != "logo_url"} for k, m in M.items()})
+    _write(site / "data" / "teams.json", M)
     idx_path = site / "data" / "index.json"
     idx = json.loads(idx_path.read_text()) if idx_path.exists() else {"weeks": []}
     weeks = [w for w in idx.get("weeks", []) if not (w["season"] == args.season and w["week"] == week)]

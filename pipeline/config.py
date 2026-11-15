@@ -28,6 +28,9 @@ SOFT_SCORE_FLOOR = 1.0
 GAP_MAX_PENALTY = 1.0
 
 SITE_TITLE = "Scouting Report"
-HANDLE = "@yourhandle"
+HANDLE = ""
 LLM_MODEL = "claude-haiku-5-5"
 BG_HEX = "#0B0B0C"
+
+# Win-probability model: first season with features (needs the prior season's plays for week 1 priors).
+MODEL_FIRST_SEASON = 2016

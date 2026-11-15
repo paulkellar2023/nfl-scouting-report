@@ -2,6 +2,7 @@ import numpy as np
 import pandas as pd
 
 from .config import BG_HEX
+from .teams_meta import espn_logo
 
 
 def _rgb(h):
@@ -48,7 +49,7 @@ def team_meta(teams_df, active):
         out[ab] = {"abbr": ab, "name": r["team_name"], "nick": r["team_nick"], "label": label, "plural": plural,
                    "conf": r.get("team_conf"), "division": r.get("team_division"),
                    "color": r.get("team_color"), "accent": accent(r.get("team_color"), r.get("team_color2")),
-                   "logo_url": r.get("team_logo_espn"), "logo": f"assets/logos/{ab}.png"}
+                   "logo_url": r.get("team_logo_espn") if isinstance(r.get("team_logo_espn"), str) else espn_logo(ab), "logo": f"assets/logos/{ab}.png"}
     return out
 
 
