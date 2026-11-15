@@ -26,11 +26,11 @@
 
   <nav class="toc" aria-label="On this page">
     <a href="#data">Data</a><a href="#cleaning">Cleaning</a><a href="#metrics">Metrics</a><a href="#adjust">Adjustment</a>
-    <a href="#cards">Cards &amp; keys</a><a href="#model">Model</a><a href="#record">Track record</a><a href="#recaps">Recaps</a><a href="#teams">Teams</a><a href="#leverage">Leverage</a><a href="#limits">Limits</a><a href="#credits">Credits</a>
+    <a href="#cards">Cards &amp; keys</a><a href="#model">Model</a><a href="#record">Track record</a><a href="#recaps">Recaps</a><a href="#teams">Teams</a><a href="#projections">Projections</a><a href="#bracket">Bracket</a><a href="#leverage">Leverage</a><a href="#limits">Limits</a><a href="#credits">Credits</a>
   </nav>
 
   <section id="data"><h2>Data</h2>
-    <p>Play-by-play, schedules and betting lines, rosters, injury reports, snap counts and FTN charting (play action, motion, blitzers, pass rushers, interception-worthy throws), all from <a href="https://github.com/nflverse">nflverse</a> through the <code>nflreadpy</code> package. The site rebuilds Thursday morning (full report and the Thursday line), then Saturday and Sunday morning (newer injury statuses for the model). Once a game kicks off, its report is frozen.</p>
+    <p>Play-by-play, schedules and betting lines, rosters, injury reports, snap counts and FTN charting (play action, motion, blitzers, pass rushers, interception-worthy throws), all from <a href="https://github.com/nflverse">nflverse</a> through the <code>nflreadpy</code> package. Also from nflverse: NFL Next Gen Stats (time to throw, tight-window throws, rush yards over expected, separation and cushion, stacked boxes) and Pro Football Reference charting (pressures, broken and missed tackles). ESPN FPI game win probabilities come from ESPN's public game pages and are shown as "–" when unavailable. The site rebuilds Thursday morning (full report and the Thursday line), then Saturday and Sunday morning (newer injury statuses for the model). Once a game kicks off, its report is frozen.</p>
   </section>
 
   <section id="cleaning"><h2>Cleaning</h2>
@@ -84,12 +84,28 @@
     <p>About 270 games per season is a small sample. A Brier gap smaller than about 0.01 is mostly noise.</p>
   </section>
 
+  <section id="fpi"><h2>Three numbers: model, market, ESPN FPI</h2>
+    <p>Each game shows our model, the market (vig-free moneyline, else the spread) and ESPN's FPI matchup predictor. The FPI number is saved at our last build before kickoff and graded on the track record page next to the other two. Tiles show the favorite and its win chance; exactly 50% shows "EVEN".</p>
+  </section>
+
+  <section id="nextgen"><h2>Next Gen Stats and PFR cards</h2>
+    <p>Weekly Next Gen Stats and PFR rows are combined with the same 6-week recency weights as the play-by-play stats. Player stats need a minimum sample (100 attempts for QBs, 50 carries for RBs, 25 targets for receivers) and are not shrunk. Team stats (stacked boxes, pressure, tackling) are shrunk to the league mean. When PFR pressures are available they replace the "QB hit + sack" proxy for the team pressure card; the play-level proxy is still used for the clean-pocket and four-man-rush cards and for recaps. None of these are opponent-adjusted.</p>
+  </section>
+
   <section id="recaps"><h2>Post-game recaps</h2>
     <p>After a game, each key to success is checked against the same stat in that game, using plays with a win probability between 10% and 90%. The offense "wins" a key if its in-game value beats the league average for that stat (for pressure and stuff rate, if it is lower). A team wins the key if its side won it. Keys need a minimum number of plays (for example 8 dropbacks for passing EPA); below that they are marked "too few plays". Run-gap, coverage-shell, form and luck keys are not graded. Recaps are added on the next build after nflverse publishes the game's play-by-play, usually the next morning.</p>
   </section>
 
   <section id="teams"><h2>League table &amp; team pages</h2>
-    <p>NET = opponent-adjusted offensive EPA per play minus opponent-adjusted defensive EPA per play allowed (all plays, garbage time removed, recency-weighted). Pass and rush ranks use the same adjustment as the cards. TREND compares today's NET rank with the NET rank from plays through 4 weeks earlier. The weekly chart on team pages shows raw game values, so it does not remove opponent strength.</p>
+    <p>NET = opponent-adjusted offensive EPA per play minus opponent-adjusted defensive EPA per play allowed (all plays, garbage time removed, recency-weighted). Pass and rush ranks use the same adjustment as the cards. TREND compares today's NET rank with the NET rank from plays through 4 weeks earlier. PROJ is the average final record across the 10,000 season simulations. LUCK = actual wins minus Pythagorean expected wins, where expected win % = PF<sup>2.37</sup> / (PF<sup>2.37</sup> + PA<sup>2.37</sup>). The weekly chart on team pages shows raw game values, so it does not remove opponent strength.</p>
+  </section>
+
+  <section id="projections"><h2>Projected weeks</h2>
+    <p>Every remaining regular-season game through week 18 gets the full set of cards, built from the same data as this week (so the matchup stats are what each team has done so far). The model uses today's ratings and projected starters, no injury report, and the scheduled rest. The summary is rule-based. Projections are rebuilt on every run, so they improve as the season goes on.</p>
+  </section>
+
+  <section id="bracket"><h2>Playoff bracket</h2>
+    <p>Seeds come from current standings: division winners are seeds 1-4, then three wild cards. Ties are broken by head-to-head (within the tied group), division record (same division only), conference record, point differential, then team name. This is approximate: the NFL's full list has more steps, such as common games and strength of victory. Each round is filled by the model favorite; the higher seed hosts and the Super Bowl is neutral. After week 18, real matchups and results from the schedule replace projections as they are set.</p>
   </section>
 
   <section id="leverage"><h2>Playoff leverage &amp; standings</h2>

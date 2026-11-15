@@ -2,7 +2,7 @@
 margin distribution, injuries, unit ratings, and the model's backtest record."""
 import numpy as np
 
-from .text import fmt
+from .text import fmt, possessive as poss
 
 SRC = "NFLVERSE PLAY-BY-PLAY · INJURIES · SNAP COUNTS · SCHEDULES (LINES)"
 
@@ -21,7 +21,7 @@ def _card(cid, owner, t1, t2, sub, chart, note, score=1.0):
             "t1": t1, "t2": t2, "sub": sub, "chart": chart, "source": SRC, "note": note}
 
 
-def build(mp, meta, M, names):
+def build(mp, meta, M, names, fpi=None):
     h, a = mp["home"], mp["away"]
     H, A = M[h]["label"], M[a]["label"]
     lab = {h: H, a: A}
@@ -41,7 +41,7 @@ def build(mp, meta, M, names):
         cards.append(_card("market", side if abs(gap) >= 0.03 else fav, t1, t2,
                            f"Win probability. Market = {'vig-free moneyline' if mp['market']['source'] == 'moneyline' else 'spread converted to probability'} at build time.",
                            {"type": "probbars", "home": h, "away": a,
-                            "rows": [{"label": "MODEL", "p": ph}, {"label": "MARKET", "p": pm}]},
+                            "rows": [{"label": "MODEL", "p": ph}, {"label": "MARKET", "p": pm}] + ([{"label": "ESPN FPI", "p": fpi}] if fpi is not None else [])},
                            "Not betting advice · market line at build time"))
 
     items = sorted([c for c in mp["contribs"] if abs(c["pts"]) >= 0.05], key=lambda c: -abs(c["pts"]))
@@ -63,7 +63,7 @@ def build(mp, meta, M, names):
                        {"type": "dist", "home": h, "away": a, "mu": m, "sigma": mp["sigma"], "market": spread},
                        f"Normal margin, sigma = {mp['sigma']:.1f} points (fit by log loss)"))
 
-    if meta.get("injuries_available"):
+    if meta.get("injuries_available") and not mp.get("projected"):
         inj = mp["injuries"]
         load = {t: sum(r["weight"] for r in inj.get(t, [])) for t in (h, a)}
         worse = max((h, a), key=lambda t: load[t])
@@ -89,8 +89,8 @@ def build(mp, meta, M, names):
     best = max(rows, key=lambda x: abs(x[h] - x[a]))
     bt = h if best[h] > best[a] else a
     qh, qa = mp["qb"][h], mp["qb"][a]
-    cards.append(_card("units", bt, f"The biggest unit gap: {lab[bt]}'s {best['label'].lower()}.",
-                       f"{abs(best[h] - best[a]):.2f} EPA per play better than {lab[a if bt == h else h]}'s.",
+    cards.append(_card("units", bt, f"The biggest unit gap: {poss(lab[bt])} {best['label'].lower()}.",
+                       f"{abs(best[h] - best[a]):.2f} EPA per play better than {poss(lab[a if bt == h else h])}.",
                        "Opponent-adjusted EPA per play vs. league average, the inputs to the model. Right = better.",
                        {"type": "units", "home": h, "away": a, "rows": rows,
                         "qb": [{"team": t, "name": names.get(q["id"], q["id"] or "Unknown"), "v": q["value"]} for t, q in ((a, qa), (h, qh))]},
@@ -111,7 +111,7 @@ def build(mp, meta, M, names):
     return cards
 
 
-def summary(mp, M):
+def summary(mp, M, fpi=None):
     h, a = mp["home"], mp["away"]
     lab = {h: M[h]["label"], a: M[a]["label"]}
     fav, pf = _fav(mp["p_home"], h, a)
@@ -120,6 +120,9 @@ def summary(mp, M):
     if pm is not None:
         mf, mpf = _fav(pm, h, a)
         s += f" Market: {lab[mf]} {fmt(mpf, 'pct')}."
+    if fpi is not None:
+        ff, fpf = _fav(fpi, h, a)
+        s += f" ESPN FPI: {lab[ff]} {fmt(fpf, 'pct')}."
     items = sorted(mp["contribs"], key=lambda c: -abs(c["pts"]))
     if items and abs(items[0]["pts"]) >= 0.3:
         t = h if items[0]["pts"] > 0 else a

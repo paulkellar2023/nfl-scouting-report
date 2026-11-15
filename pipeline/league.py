@@ -23,7 +23,10 @@ def _ranks(v):
     return {t: i + 1 for i, t in enumerate(order)}
 
 
-def build(site, season, week, plays, sched, tpls, lev_teams, M, qb, names, synthetic):
+PYTH_EXP = 2.37
+
+
+def build(site, season, week, plays, sched, tpls, lev_teams, lev_proj, M, qb, names, synthetic):
     teams = sorted(M)
     net_now, net_then = _net(plays, week), _net(plays, week - TREND_WEEKS)
     r_now, r_then = _ranks(net_now), (_ranks(net_then) if net_then else {})
@@ -37,6 +40,11 @@ def build(site, season, week, plays, sched, tpls, lev_teams, M, qb, names, synth
     for t in teams:
         hg, ag = done[done["home_team"] == t], done[done["away_team"] == t]
         diff = np.concatenate([hg["result"].values, -ag["result"].values]).astype(float)
+        pf = float(hg["home_score"].sum() + ag["away_score"].sum())
+        pa = float(hg["away_score"].sum() + ag["home_score"].sum())
+        ng = len(diff)
+        xw = ng * pf ** PYTH_EXP / (pf ** PYTH_EXP + pa ** PYTH_EXP) if pf + pa > 0 else None
+        wins = float((diff > 0).sum() + 0.5 * (diff == 0).sum())
         units = {}
         for uid in UNITS:
             tpl = tp.get(uid)
@@ -55,11 +63,13 @@ def build(site, season, week, plays, sched, tpls, lev_teams, M, qb, names, synth
                   "net": {"v": round(float(net_now[t]), 4) if t in net_now else None, "r": r_now.get(t),
                           "chg": (r_then[t] - r_now[t]) if t in r_then and t in r_now else None},
                   "p_playoffs": lev_teams.get(t), "qb": names.get(qb.get(t), None),
+                  "proj": lev_proj.get(t), "xw": None if xw is None else round(xw, 1),
+                  "luck": None if xw is None else round(wins - xw, 1),
                   "units": units, "trend": trend, "games": []}
     # game log from every built week (same data type as this build)
     for wdir in sorted((Path(site) / "data" / str(season)).glob("wk*")):
         gj = wdir / "games.json"
-        if not gj.exists():
+        if not gj.exists() or not wdir.name[2:].isdigit():
             continue
         board = json.loads(gj.read_text())
         if bool(board.get("synthetic")) != bool(synthetic):
@@ -71,7 +81,8 @@ def build(site, season, week, plays, sched, tpls, lev_teams, M, qb, names, synth
                     continue
                 pm = (tile.get("model") or {}).get("p_home")
                 row = {"week": board["week"], "id": tile["id"], "opp": opp, "home": home, "kickoff": tile.get("kickoff"),
-                       "p": None if pm is None else round(pm if home else 1 - pm, 3), "final": tile.get("final")}
+                       "p": None if pm is None else round(pm if home else 1 - pm, 3), "final": tile.get("final"),
+                       "proj": bool(board.get("projected"))}
                 out[t]["games"].append(row)
     doc = {"season": season, "week": week, "trend_weeks": TREND_WEEKS, "teams": out}
     p = Path(site) / "data" / str(season) / "league.json"

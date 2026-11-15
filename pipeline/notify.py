@@ -1,5 +1,5 @@
-"""Weekly Buttondown emails: one per team (subscribers tagged with the team abbreviation) and one
-digest (subscribers tagged ALL). Runs once per week: a marker file in the week folder blocks
+"""Weekly Buttondown emails: one digest to every subscriber; with EMAIL_PER_TEAM also one per team
+(subscribers tagged with the team abbreviation) and the digest goes to subscribers tagged ALL. Runs once per week: a marker file in the week folder blocks
 repeats from the Saturday and Sunday refreshes. EMAIL_MODE = "draft" creates drafts only."""
 import json
 import logging
@@ -7,7 +7,7 @@ import os
 from pathlib import Path
 
 from . import health
-from .config import EMAIL_MODE, SITE_TITLE, SITE_URL
+from .config import EMAIL_MODE, EMAIL_PER_TEAM, SITE_TITLE, SITE_URL
 
 log = logging.getLogger(__name__)
 API = "https://api.buttondown.com/v1/emails"
@@ -71,8 +71,8 @@ def send_week(wdir, teams, ordered_ids, week):
             pass
     status = "about_to_send" if EMAIL_MODE == "send" else "draft"
     hdr = {"Authorization": f"Token {key}"}
-    jobs = [(f"{SITE_TITLE}: Week {week} preview", _digest_body(docs, week, teams), "ALL")]
-    for d in docs:
+    jobs = [(f"{SITE_TITLE}: Week {week} preview", _digest_body(docs, week, teams), "ALL" if EMAIL_PER_TEAM else None)]
+    for d in (docs if EMAIL_PER_TEAM else []):
         for t in (d["away"], d["home"]):
             opp = d["home"] if t == d["away"] else d["away"]
             jobs.append((f"{SITE_TITLE}: {teams[t]['nick']} vs. {teams[opp]['nick']}, Week {week}",
@@ -80,8 +80,10 @@ def send_week(wdir, teams, ordered_ids, week):
     ok = 0
     for subject, body, tag in jobs:
         try:
-            r = requests.post(API, headers=hdr, timeout=20,
-                              json={"subject": subject, "body": body, "status": status, "filters": _tag_filter(tag)})
+            payload = {"subject": subject, "body": body, "status": status}
+            if tag:
+                payload["filters"] = _tag_filter(tag)
+            r = requests.post(API, headers=hdr, timeout=20, json=payload)
             r.raise_for_status()
             ok += 1
         except Exception as e:  # one failed email must not stop the others or the build

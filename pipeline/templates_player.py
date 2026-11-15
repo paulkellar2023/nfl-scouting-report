@@ -3,11 +3,12 @@ import numpy as np
 
 from . import stats as S
 from .context import short_name
+from .extras import SRC_NGS
 from .templates_team import SRC_FTN, SRC_PART, SRC_PBP
 from .text import fmt, ordinal, possessive as poss
 
 
-def build_tables(plays, flags):
+def build_tables(plays, flags, X=None):
     e = plays[plays["eff"]]
     db = e[e["dropback"] & e["qb_id"].notna()]
     att = e[e["attempt"] & e["passer_player_id"].notna()]
@@ -32,6 +33,9 @@ def build_tables(plays, flags):
     g["air_share"] = g["aw"] / tot["aw"]
     g["wopr"] = 1.5 * g["tgt_share"] + 0.7 * g["air_share"]
     T["shares"] = g[g["n"] >= 30].set_index("receiver_player_id")
+    for k in ("qb_ttt", "qb_aggr", "rb_ryoe", "wr_sep", "wr_cush"):
+        if X and k in X and len(X[k]) >= 8:
+            T[k] = X[k]
     return T
 
 
@@ -97,7 +101,8 @@ class Cards:
 
     def all(self, a, b):
         out = []
-        for f in (self.qb_epa, self.qb_pressure, self.qb_cpoe, self.qb_man, self.rb, self.wr_share, self.rec_yac):
+        for f in (self.qb_epa, self.qb_pressure, self.qb_cpoe, self.qb_man, self.rb, self.wr_share, self.rec_yac,
+                  self.qb_ttt, self.qb_aggr, self.rb_ryoe, self.wr_sep):
             try:
                 c = f(a, b)
             except (KeyError, ValueError):
@@ -296,6 +301,101 @@ class Cards:
                           f"Every receiver with 20+ catches ({n}), {self.game['span']}.",
                           {"type": "pstrip", "pts": pts, "fmt": "yds", "axis": "YAC OVER EXPECTED PER CATCH", "avg": 0},
                           f"Shrunk to league mean · {short_name(nm)}: n={int(ty.loc[own, 'n'])} catches")
+
+
+    # ---------- Next Gen Stats ----------
+    def _strip(self, tab, own, hl, fmt_, axis):
+        return {"type": "pstrip", "pts": [self._pt(p, p in hl, v=v) for p, v in tab["value_s"].dropna().items()],
+                "fmt": fmt_, "axis": axis, "avg": _r(float(tab["value_s"].dropna().mean()))}
+
+    def qb_ttt(self, a, b):
+        tab = self.T.get("qb_ttt")
+        pr = self._pair(tab, a, b) if tab is not None else []
+        if not pr:
+            return None
+        rush = self.tt.get("pressure")
+
+        def rz(t):
+            z = S.zscore(rush.deff, b if t == a else a, 1) if rush is not None else np.nan
+            return 0.0 if np.isnan(z) else z
+        own, ot = max(pr, key=lambda x: abs(_z(tab, x[0])) * (1 + 0.3 * max(rz(x[1]), 0)))
+        opp = b if ot == a else a
+        nm, v, z, n = self._name(own), float(tab.loc[own, "value_s"]), _z(tab, own), int(tab["value_s"].notna().sum())
+        r = _rank(tab, own)
+        rk, _ = self._team_rank("pressure", opp, "def", -1)
+        rush_txt = f"{poss(self.M[opp]['label'])} pass rush ranks {ordinal(rk)}." if rk else "Protection has to hold up."
+        if z > 0.5:
+            l1, l2 = f"{nm} holds the ball {v:.2f} seconds per throw, {ordinal(r)}-longest of {n}.", rush_txt
+        elif z < -0.5:
+            l1 = f"{nm} gets the ball out in {v:.2f} seconds, {ordinal(n + 1 - r)}-fastest of {n}."
+            l2 = f"That blunts {poss(self.M[opp]['label'])} pass rush ({ordinal(rk)})." if rk else "Quick game first."
+        else:
+            l1, l2 = f"{nm} averages {v:.2f} seconds to throw.", rush_txt
+        return self._card(f"qb_ttt:{own}", ot, abs(z) * (1 + 0.3 * max(rz(ot), 0)), l1, l2,
+                          f"Every QB with 100+ attempts ({n}), {self.game['span']}.",
+                          self._strip(tab, own, {p for p, _ in pr}, "sec", "AVERAGE TIME TO THROW (SECONDS)"),
+                          f"Snap to throw · recency-weighted · {short_name(nm)}: n={int(tab.loc[own, 'n'])} attempts", SRC_NGS)
+
+    def qb_aggr(self, a, b):
+        tab = self.T.get("qb_aggr")
+        pr = self._pair(tab, a, b) if tab is not None else []
+        if not pr:
+            return None
+        own, ot = max(pr, key=lambda x: abs(_z(tab, x[0])))
+        opp = b if ot == a else a
+        nm, v, z, n = self._name(own), float(tab.loc[own, "value_s"]), _z(tab, own), int(tab["value_s"].notna().sum())
+        r = _rank(tab, own)
+        rp_, _ = self._team_rank("pass_epa", opp, "def", 1)
+        l1 = (f"{nm} throws into tight windows on {fmt(v, 'pct')} of passes, {ordinal(r)}-most of {n}." if z >= 0 else
+              f"{nm} throws into tight windows on just {fmt(v, 'pct')} of passes, {ordinal(n + 1 - r)}-fewest of {n}.")
+        l2 = f"{poss(self.M[opp]['label'])} pass defense ranks {ordinal(rp_)}." if rp_ else ""
+        return self._card(f"qb_aggr:{own}", ot, 0.85 * abs(z), l1, l2, f"Every QB with 100+ attempts ({n}), {self.game['span']}.",
+                          self._strip(tab, own, {p for p, _ in pr}, "pct", "TIGHT-WINDOW THROW RATE (AGGRESSIVENESS)"),
+                          f"Tight window = defender within 1 yard at the catch point · {short_name(nm)}: n={int(tab.loc[own, 'n'])} attempts", SRC_NGS)
+
+    def rb_ryoe(self, a, b):
+        tab = self.T.get("rb_ryoe")
+        if tab is None:
+            return None
+        valid = tab["value_s"].dropna().index
+        pr = [(self.ctx["rb"].get(t), t) for t in (a, b) if self.ctx["rb"].get(t) in valid]
+        if not pr:
+            return None
+        own, ot = max(pr, key=lambda x: abs(_z(tab, x[0])))
+        opp = b if ot == a else a
+        nm, v, n = self._name(own), float(tab.loc[own, "value_s"]), int(tab["value_s"].notna().sum())
+        r = _rank(tab, own)
+        rr, _ = self._team_rank("rush_epa", opp, "def", 1)
+        l1 = (f"{nm} gains {v:+.1f} rushing yards over expected per carry, {ordinal(r)} of {n}." if v >= 0 else
+              f"{nm} runs {abs(v):.1f} yards per carry below expected, {ordinal(r)} of {n}.")
+        l2 = f"{poss(self.M[opp]['label'])} run defense ranks {ordinal(rr)}." if rr else ""
+        return self._card(f"rb_ryoe:{own}", ot, abs(_z(tab, own)) + (0.25 if r in (1, n) else 0), l1, l2,
+                          f"Every RB with 50+ carries ({n}), {self.game['span']}.",
+                          self._strip(tab, own, {p for p, _ in pr}, "yds", "RUSH YARDS OVER EXPECTED PER CARRY"),
+                          f"Expected yards from player tracking at the handoff · {short_name(nm)}: n={int(tab.loc[own, 'n'])} carries", SRC_NGS)
+
+    def wr_sep(self, a, b):
+        ts, tc = self.T.get("wr_sep"), self.T.get("wr_cush")
+        if ts is None or tc is None:
+            return None
+        valid = ts["value_s"].dropna().index.intersection(tc["value_s"].dropna().index)
+        pr = [(p, t) for t in (a, b) for p in self.ctx["tgt"].get(t, [])[:3] if p in valid]
+        if not pr:
+            return None
+        own, ot = max(pr, key=lambda x: _z(ts, x[0]))
+        opp = b if ot == a else a
+        nm, v, n = self._name(own), float(ts.loc[own, "value_s"]), int(ts["value_s"].notna().sum())
+        r = _rank(ts, own)
+        rp_, _ = self._team_rank("pass_epa", opp, "def", 1)
+        l1 = f"{nm} averages {v:.1f} yards of separation, {ordinal(r)} of {n}." if r > 1 else f"No receiver gets open like {nm} ({v:.1f} yards)."
+        l2 = f"{poss(self.M[opp]['label'])} pass defense ranks {ordinal(rp_)}." if rp_ else ""
+        pts = self._xy(tc, ts, {p for p, _ in pr})
+        return self._card(f"wr_sep:{own}", ot, max(_z(ts, own), 0) + (0.25 if r == 1 else 0), l1, l2,
+                          f"Every receiver with 25+ targets, {self.game['span']}. Dashed lines = median.",
+                          {"type": "pscatter", "pts": pts, "fmt_x": "num1", "fmt_y": "num1", "x_label": "CUSHION AT THE SNAP",
+                           "x_sub": "yards to nearest defender", "y_label": "SEPARATION AT THE CATCH", "y_sub": "yards to nearest defender",
+                           "med": [_r(float(np.median([p['x'] for p in pts]))), _r(float(np.median([p['y'] for p in pts])))]},
+                          f"Recency-weighted · {short_name(nm)}: n={int(ts.loc[own, 'n'])} targets", SRC_NGS)
 
 
 def select(cards, lo, hi, cap=10):

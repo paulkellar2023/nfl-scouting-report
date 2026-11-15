@@ -293,4 +293,32 @@ def run(hist, season, week, starters, first_season):
             "hfa": round(float(r.beta[-1]), 2), "train_seasons": [int(first_season), int(season)],
             "injuries_available": bool(len(injt)), "season_walk": season_walk(allf, season, week)}
     log.info("model: alpha %s sigma %.2f hfa %.2f coefs %s", alpha, sig, r.beta[-1], meta["coef_pts_per_sd"])
-    return preds, meta
+    st, qbv = _state(d, season, week)
+
+    def predict(home, away, neutral=False, rest=0.0, spread=None, home_ml=None, away_ml=None):
+        """Projection for any pairing with today's ratings and starters, no injury load (future weeks, playoffs)."""
+        if st is None:
+            return None
+        po, pd_, _ = st["pass"]
+        ro, rd, _ = st["rush"]
+        try:
+            row = {"pass_edge": po[home] + pd_[away] - po[away] - pd_[home], "rush_edge": ro[home] + rd[away] - ro[away] - rd[home]}
+        except KeyError:
+            return None
+        qh, qa = starters.get(home), starters.get(away)
+        row.update({"qb_diff": qbv.get(qh, QB_PRIOR) - qbv.get(qa, QB_PRIOR), "inj_off": 0.0, "inj_def": 0.0,
+                    "rest_diff": float(np.clip(rest if pd.notna(rest) else 0, -7, 7)), "home_flag": 0.0 if neutral else 1.0})
+        c = r.contribs(pd.DataFrame([row]))[0]
+        m = float(c.sum())
+        pm, src = market_prob(spread, home_ml, away_ml)
+        rat = {t: {"off_pass": round(float(po[t]), 4), "def_pass": round(float(pd_[t]), 4),
+                   "off_rush": round(float(ro[t]), 4), "def_rush": round(float(rd[t]), 4)} for t in (home, away)}
+        rat["mu"] = {"pass": round(float(st["pass"][2]), 4), "rush": round(float(st["rush"][2]), 4)}
+        return {"home": home, "away": away, "margin": round(m, 2), "sigma": sig, "p_home": round(float(norm.cdf(m / sig)), 4),
+                "market": {"p_home": None if pm is None else round(pm, 4), "source": src,
+                           "spread": None if spread is None or pd.isna(spread) else float(spread)},
+                "contribs": [{"key": f, "label": LABELS[f], "pts": round(float(v), 2)} for f, v in zip(FEATS + ["home"], c)],
+                "ratings": rat, "qb": {home: {"id": qh, "value": round(float(qbv.get(qh, QB_PRIOR)), 3)},
+                                       away: {"id": qa, "value": round(float(qbv.get(qa, QB_PRIOR)), 3)}},
+                "injuries": {home: [], away: []}, "inj_pts": {"off": 0.0, "def": 0.0}, "projected": True}
+    return preds, meta, predict

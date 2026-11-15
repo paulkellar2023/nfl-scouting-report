@@ -323,3 +323,50 @@ def load_history(seasons, target_season, target_week, seed=11):
             "part": parts[-1]["part"], "ftn": parts[-1]["ftn"], "injuries": pd.DataFrame(inj),
             "snaps": pd.DataFrame(snaps), "players": pd.DataFrame(players), "synthetic": True,
             "cur_pbp": parts[-1]["pbp"], "cur_sched": parts[-1]["sched"]}
+
+
+def extras(pbp, season, seed=11):
+    """Synthetic Next Gen Stats and PFR weekly tables, built from the synthetic plays."""
+    rng = np.random.default_rng(seed + 99)
+    d = pbp[pbp["season"] == season] if "season" in pbp.columns else pbp
+    team_box = {t: rng.normal(0.22, 0.06) for t in TEAMS}
+    team_press = {t: rng.normal(0.0, 0.05) for t in TEAMS}
+    team_tkl = {t: rng.normal(0.0, 0.02) for t in TEAMS}
+    eff = {}
+
+    def pe(pid, mu, sd):
+        if pid not in eff:
+            eff[pid] = rng.normal(mu, sd)
+        return eff[pid]
+    dbk = d[(d["qb_dropback"] == 1) & d["passer_player_id"].notna()]
+    ng_p = []
+    for (pid, nm, t, w), g in dbk.groupby(["passer_player_id", "passer_player_name", "posteam", "week"]):
+        ng_p.append({"season": season, "season_type": "REG", "week": w, "player_gsis_id": pid, "player_display_name": nm,
+                     "team_abbr": t, "attempts": len(g), "avg_time_to_throw": pe(pid + "t", 2.75, 0.18) + rng.normal(0, 0.12),
+                     "aggressiveness": max(2.0, pe(pid + "a", 16, 3.5) + rng.normal(0, 3))})
+    ru = d[(d["play_type"] == "run") & d["rusher_player_id"].notna() & (d["qb_dropback"] != 1)]
+    ng_r = []
+    for (pid, nm, t, de, w), g in ru.groupby(["rusher_player_id", "rusher_player_name", "posteam", "defteam", "week"]):
+        ng_r.append({"season": season, "season_type": "REG", "week": w, "player_gsis_id": pid, "player_display_name": nm,
+                     "team_abbr": t, "rush_attempts": len(g), "rush_yards_over_expected_per_att": pe(pid, 0, 0.35) + rng.normal(0, 0.8),
+                     "percent_attempts_gte_eight_defenders": 100 * float(np.clip(team_box[de] + rng.normal(0, 0.08), 0, 1))})
+    rc = d[d["receiver_player_id"].notna()]
+    ng_c = []
+    for (pid, nm, t, w), g in rc.groupby(["receiver_player_id", "receiver_player_name", "posteam", "week"]):
+        ng_c.append({"season": season, "season_type": "REG", "week": w, "player_gsis_id": pid, "player_display_name": nm,
+                     "team_abbr": t, "targets": len(g), "avg_separation": pe(pid + "s", 2.9, 0.35) + rng.normal(0, 0.4),
+                     "avg_cushion": pe(pid + "c", 6.0, 0.8) + rng.normal(0, 0.6)})
+    pf_p, pf_r, pf_c, pf_d = [], [], [], []
+    for (t, de, w), g in d.groupby(["posteam", "defteam", "week"]):
+        db = int((g["qb_dropback"] == 1).sum())
+        rate = float(np.clip(0.30 + team_press[de] - team_press[t] / 2 + rng.normal(0, 0.05), 0.05, 0.7))
+        pf_p.append({"season": season, "game_type": "REG", "week": w, "team": t, "opponent": de, "times_pressured": int(rng.binomial(db, rate))})
+        runs = int((g["play_type"] == "run").sum())
+        cmp_ = int((g["complete_pass"] == 1).sum())
+        p_bt = float(np.clip(0.08 + team_tkl[t] - team_tkl[de] / 2, 0.01, 0.3))
+        b1, b2 = int(rng.binomial(runs, p_bt)), int(rng.binomial(cmp_, p_bt))
+        pf_r.append({"season": season, "game_type": "REG", "week": w, "team": t, "rushing_broken_tackles": b1})
+        pf_c.append({"season": season, "game_type": "REG", "week": w, "team": t, "receiving_broken_tackles": b2})
+        pf_d.append({"season": season, "game_type": "REG", "week": w, "team": de, "def_missed_tackles": b1 + b2 + int(rng.integers(0, 3))})
+    return {"ngs_pass": pd.DataFrame(ng_p), "ngs_rush": pd.DataFrame(ng_r), "ngs_rec": pd.DataFrame(ng_c),
+            "pfr_pass": pd.DataFrame(pf_p), "pfr_rush": pd.DataFrame(pf_r), "pfr_rec": pd.DataFrame(pf_c), "pfr_def": pd.DataFrame(pf_d)}

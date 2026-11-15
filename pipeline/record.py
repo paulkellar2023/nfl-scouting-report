@@ -128,17 +128,16 @@ def recap_text(rec, M):
 
 def grade_weeks(site, season, target_week, sched, plays, tpls, M, synthetic):
     """Add a recap to every finished game in earlier weeks that does not have one yet. Returns count graded."""
-    tinfo = {t.id: {"keys": t.keys, "label": t.label, "fmt": t.fmt, "sign": t.sign} for t in tpls}
+    tinfo = {t.id: {"keys": t.keys, "label": t.extra.get("grade_label", t.label), "fmt": t.fmt, "sign": t.sign} for t in tpls}
     base = baselines(plays)
     s = sched.set_index("game_id")
     n = 0
     for wdir in sorted((Path(site) / "data" / str(season)).glob("wk*")):
-        week = int(wdir.name[2:])
         gj = wdir / "games.json"
-        if week >= target_week or not gj.exists():
+        if not wdir.name[2:].isdigit() or int(wdir.name[2:]) >= target_week or not gj.exists():
             continue
         board = json.loads(gj.read_text())
-        if bool(board.get("synthetic")) != bool(synthetic):
+        if bool(board.get("synthetic")) != bool(synthetic) or board.get("projected"):
             continue
         changed = False
         for tile in board["games"]:
@@ -190,10 +189,10 @@ def build(site, season, week, mmeta, synthetic):
     pub = []
     for wdir in sorted((Path(site) / "data" / str(season)).glob("wk*")):
         gj = wdir / "games.json"
-        if not gj.exists():
+        if not gj.exists() or not wdir.name[2:].isdigit():
             continue
         board = json.loads(gj.read_text())
-        if bool(board.get("synthetic")) != bool(synthetic):
+        if bool(board.get("synthetic")) != bool(synthetic) or board.get("projected"):
             continue
         for tile in board["games"]:
             if not tile.get("final") or not tile.get("model"):
@@ -203,16 +202,18 @@ def build(site, season, week, mmeta, synthetic):
             if hs == as_:
                 continue
             pub.append({"id": tile["id"], "week": board["week"], "home": h, "away": a,
-                        "p": tile["model"]["p_home"], "pm": tile["model"].get("mkt"),
+                        "p": tile["model"]["p_home"], "pm": tile["model"].get("mkt"), "pf": tile["model"].get("fpi"),
                         "final": tile["final"], "y": float(hs > as_)})
     walk = []
     for r in (mmeta or {}).get("season_walk", []):
         if r["margin"] != 0:
             walk.append({**r, "y": float(r["margin"] > 0)})
     pub_m = [x for x in pub if x.get("pm") is not None]
+    pub_3 = [x for x in pub_m if x.get("pf") is not None]
     walk_m = [x for x in walk if x.get("pm") is not None]
     out = {"season": season, "week": week,
            "published": {"model": _score(pub_m, "p"), "market": _score(pub_m, "pm"), "games": pub[::-1], "cum": _cum(pub)},
+           "three": {"model": _score(pub_3, "p"), "market": _score(pub_3, "pm"), "fpi": _score(pub_3, "pf")},
            "walk": {"model": _score(walk_m, "p"), "market": _score(walk_m, "pm"), "cum": _cum(walk)},
            "backtest": (mmeta or {}).get("backtest", []), "calib": (mmeta or {}).get("calib", [])}
     p = Path(site) / "data" / str(season) / "record.json"

@@ -64,8 +64,10 @@ def simulate(sched, meta, target_week, rate, seed=7):
         wc = np.argsort(-k2, axis=1)[:, :3]
         win_mask[np.arange(N_SIMS)[:, None], wc] = True
         po[:, cidx] = win_mask
-    out = {"_teams": {t: round(float(po[:, ix[t]].mean()), 3) for t in teams}}
-    for j, g in rem[rem["week"] == target_week].iterrows():
+    n_games = {t: int(((reg["home_team"] == t) | (reg["away_team"] == t)).sum()) for t in teams}
+    out = {"_teams": {t: round(float(po[:, ix[t]].mean()), 3) for t in teams},
+           "_proj": {t: [round(float(wins[:, ix[t]].mean()), 1), round(n_games[t] - float(wins[:, ix[t]].mean()), 1)] for t in teams}}
+    for j, g in rem.iterrows():
         h, a = hi[j], ai[j]
         w = hw[:, j]
         lev = 0.0

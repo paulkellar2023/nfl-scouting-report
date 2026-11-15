@@ -13,6 +13,7 @@ from .clean import GAP_ORDER
 SRC_PBP = "NFLVERSE PLAY-BY-PLAY"
 SRC_FTN = "FTN CHARTING VIA NFLVERSE"
 SRC_PART = "NFLVERSE PARTICIPATION"
+SRC_PFR = "PRO FOOTBALL REFERENCE VIA NFLVERSE"
 
 
 @dataclass
@@ -56,7 +57,8 @@ def _adj_pair(sub, y, min_n, teams, off_key="posteam"):
     return o, d
 
 
-def build(plays, flags, starters, teams):
+def build(plays, flags, starters, teams, X=None):
+    X = X or {}
     e = plays[plays["eff"]].copy()
     e["pkey"] = np.where(e["qb_id"].isin(set(starters.values())) | ~e["dropback"], e["posteam"], e["posteam"] + "~alt")
     nt = plays[plays["neutral"]]
@@ -64,10 +66,20 @@ def build(plays, flags, starters, teams):
     T = []
 
     o, d = _adj_pair(db, "epa", 100, teams, off_key="pkey")
+    # A starter with too few dropbacks has no rating: fall back to the team's rating with every QB.
+    o = o.reindex(sorted(set(o.index) | set(teams)))
+    miss = [t for t in teams if pd.isna(o.loc[t, "value_s"])]
+    pass_note = "Opponent-adjusted · projected starting QB only · garbage time removed"
+    if miss:
+        ot, _ = _adj_pair(db, "epa", 100, teams)
+        for c in ot.columns:
+            if c in o.columns:
+                o.loc[miss, c] = ot.reindex(miss)[c].values
+        pass_note += f" · team rating (all QBs) for {', '.join(miss)}"
     T.append(Tpl("pass_epa", "pass", "unit", "EPA per dropback", "epa", 1, o, d, "passing offense",
                  "pass defense", ("Win through the air", "Stay efficient through the air",
                                   "Make them throw", "Limit the passing game"), "duel", "dropbacks",
-                 note="Opponent-adjusted · projected starting QB only · garbage time removed"))
+                 note=pass_note))
 
     o, d = _adj_pair(ru, "epa", 80, teams)
     T.append(Tpl("rush_epa", "rush", "unit", "EPA per designed run", "epa", 1, o, d, "run game",
@@ -118,10 +130,22 @@ def build(plays, flags, starters, teams):
     plab = "pressure rate" if flags["pressure"] == "participation" else "QB hit + sack rate"
     psrc = (SRC_PBP, SRC_PART) if flags["pressure"] == "participation" else (SRC_PBP,)
     o, d = _eb_pair(db, "pressure", 100)
-    T.append(Tpl("pressure", "pressure", "unit", plab, "pct", -1, o, d, "pass protection", "pass rush",
+    pnote, pn, pextra, plab_t, psrc_t = "Shrunk to league mean · garbage time removed", "dropbacks", {}, plab, psrc
+    if "press_off" in X and flags["pressure"] != "participation":
+        o = X["press_off"][X["press_off"].index.isin(teams)]
+        d = X["press_def"][X["press_def"].index.isin(teams)]
+        pnote, pn, plab_t, psrc_t = "Charted pressures per dropback · all game states · shrunk to league mean", "games", "pressure rate", (SRC_PBP, SRC_PFR)
+        pextra = {"grade_label": "QB hit + sack rate"}
+    T.append(Tpl("pressure", "pressure", "unit", plab_t, "pct", -1, o, d, "pass protection", "pass rush",
                  ("Keep the pocket clean", "Protect the quarterback", "Win up front", "Find a way to get home"),
-                 "duel", "dropbacks", sources=psrc, note="Shrunk to league mean · garbage time removed",
-                 def_word="generated"))
+                 "duel", pn, sources=psrc_t, note=pnote, def_word="generated", extra=pextra))
+    if "tackle_off" in X:
+        T.append(Tpl("tackling", "tackling", "unit", "broken tackles per touch", "pct1", 1,
+                     X["tackle_off"][X["tackle_off"].index.isin(teams)], X["tackle_def"][X["tackle_def"].index.isin(teams)],
+                     "tackle-breaking offense", "tackling defense",
+                     ("Break tackles", "Fight for extra yards", "Wrap up", "Tackle in space"), "duel", "games",
+                     sources=(SRC_PFR,), def_word="missed",
+                     note="Broken tackles per run or catch vs. missed tackles per opponent run or catch · all game states · shrunk"))
 
     o, d = _eb_pair(ru, "stuffed", 80)
     T.append(Tpl("stuff", "rush", "unit", "stuff rate", "pct", -1, o, d, "run blocking", "run front",

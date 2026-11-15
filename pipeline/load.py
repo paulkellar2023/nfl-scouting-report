@@ -40,6 +40,10 @@ def load(season):
         "rosters": _try("rosters", lambda: nfl.load_rosters([season])),
         "part": _try("participation", lambda: nfl.load_participation([season])),
         "ftn": _try("ftn_charting", lambda: nfl.load_ftn_charting([season])),
+        "x": {**{f"ngs_{k[:4] if k != 'receiving' else 'rec'}": _try(f"nextgen {k}", lambda k=k: nfl.load_nextgen_stats([season], stat_type=k))
+                 for k in ("passing", "rushing", "receiving")},
+              **{f"pfr_{k}": _try(f"pfr {k}", lambda k=k: nfl.load_pfr_advstats([season], stat_type=k, summary_level="week"))
+                 for k in ("pass", "rush", "rec", "def")}},
         "synthetic": False,
     }
 

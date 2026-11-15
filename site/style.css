@@ -84,8 +84,10 @@ main { flex: 1; width: 100%; max-width: 1520px; margin: 0 auto; padding: 24px 16
 .heat-row em { font: 600 14px var(--num); font-style: normal; text-align: right; color: var(--ink); }
 .tease { margin: 0; font-weight: 800; font-size: 15px; line-height: 1.3; }
 .tease span { display: block; color: var(--acc); }
-.mline { display: flex; gap: 8px; align-items: baseline; font-size: 11px; font-weight: 900; letter-spacing: .1em; color: var(--dim); }
-.mline b { font: 600 17px var(--num); color: var(--ink); letter-spacing: .02em; margin-right: 8px; }
+.mline { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; font-size: 10px; font-weight: 900; letter-spacing: .1em; color: var(--dim); }
+.mline span { display: block; }
+.mline b { display: block; font: 600 18px var(--num); color: var(--ink); letter-spacing: .02em; white-space: nowrap; }
+.hero .mline { max-width: 360px; margin: 10px auto 0; text-align: center; }
 .model-sum { grid-column: 1 / -1; margin: 0; }
 .model-sum span { display: block; margin-top: 6px; font-size: 12px; color: var(--dim); }
 .lev { height: 4px; background: #1C1C21; border-radius: 2px; overflow: hidden; }
@@ -317,5 +319,44 @@ main { flex: 1; width: 100%; max-width: 1520px; margin: 0 auto; padding: 24px 16
   .team-hero img, .team-hero .fb { width: 64px; height: 64px; }
   .team-hero .follow-btn { grid-column: 1 / -1; justify-content: center; }
   .stat b { font-size: 38px; }
+}
+/* phase 3: projections, bracket, three-way numbers */
+.proj-note { margin: 0 0 14px; padding: 10px 14px; border: 1px dashed #5A2A14; border-radius: 10px; background: rgba(251,79,20,.06);
+  color: #E9B8A2; font-size: 12px; font-weight: 700; letter-spacing: .04em; }
+.stat .vs.three { grid-template-columns: repeat(3, 1fr); }
+.pj { font-size: 9px; letter-spacing: .1em; color: var(--dim); font-weight: 900; }
+.bracket { display: grid; gap: 18px; }
+.bconf h2, .bsb h2 { margin: 0 0 10px; font-size: 13px; font-weight: 900; letter-spacing: .18em; color: var(--brand); }
+.bcols { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
+.bcol { display: flex; flex-direction: column; gap: 10px; }
+.bgames { flex: 1; display: flex; flex-direction: column; gap: 10px; justify-content: space-around; }
+.bcol h3 { margin: 0; font-size: 10px; letter-spacing: .16em; color: var(--dim); font-weight: 900; }
+.bg { display: grid; gap: 2px; padding: 6px; background: var(--panel); border: 1px solid var(--line); border-radius: 10px; text-decoration: none;
+  transition: border-color .15s ease, transform .15s ease; }
+.bg:hover { border-color: var(--brand); transform: translateY(-1px); }
+.bg.real { border-left: 3px solid var(--brand); }
+.bg span, .bye span, .champ { display: grid; grid-template-columns: 18px 26px 1fr auto; align-items: center; gap: 8px; padding: 4px 6px; border-radius: 6px; }
+.bg span.w { background: #1C1C21; }
+.bg span.l { opacity: .55; }
+.bg i, .bye i { font-style: normal; font: 600 16px var(--num); color: var(--dim); text-align: center; }
+.bg img, .bg .fb, .bye img, .bye .fb, .champ img, .champ .fb { width: 26px; height: 26px; object-fit: contain; }
+.bg .fb, .bye .fb { font-size: 8px; }
+.bg b, .bye b { font-weight: 800; font-size: 14px; }
+.bg em, .bye em { font: 600 18px var(--num); font-style: normal; color: var(--mute); }
+.bg span.w em { color: var(--ink); }
+.bye { padding: 6px; border: 1px dashed var(--line); border-radius: 10px; }
+.bye em { font-size: 12px; letter-spacing: .1em; }
+.bsb { max-width: 420px; }
+.champ { grid-template-columns: 40px 1fr auto; margin: 12px 0 0; padding: 12px; background: var(--panel); border: 1px solid var(--brand); border-radius: 10px; }
+.champ img, .champ .fb { width: 40px; height: 40px; }
+.champ b { font-weight: 900; font-size: 18px; }
+.champ small { color: var(--dim); font-size: 11px; letter-spacing: .1em; text-transform: uppercase; }
+@media (max-width: 760px) {
+  .bcols { grid-template-columns: 1fr; }
+  .bgames { justify-content: flex-start; }
+  .stat .vs.three b { font-size: 30px; }
+  .pickers { grid-template-columns: repeat(10, 1fr); }
+  .pickers label { grid-column: span 5; }
+  .pickers .follow-btn { grid-column: span 2; padding: 8px 2px; font-size: 9px; letter-spacing: .04em; justify-content: center; }
 }
 @media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }
