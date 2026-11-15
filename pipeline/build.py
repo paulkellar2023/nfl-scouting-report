@@ -1,5 +1,6 @@
 """Weekly build: python -m pipeline.build [--week N] [--synthetic]"""
 import argparse
+import os
 import datetime as dt
 import json
 import logging
@@ -9,9 +10,9 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-from . import assets, clean, context, feeds, leverage, model, model_cards, notify, stats, story, summary, templates_player, templates_team
+from . import assets, clean, context, feeds, health, leverage, model, model_cards, notify, stats, story, summary, templates_player, templates_team
 from .text import agree
-from .config import BUTTONDOWN_USERNAME, MODEL_FIRST_SEASON, SITE_URL
+from .config import BUTTONDOWN_USERNAME, GOATCOUNTER_CODE, MODEL_FIRST_SEASON, SITE_URL
 from .config import (HANDLE, MAX_PLAYER_CARDS, MAX_TEAM_CARDS, MIN_PLAYER_CARDS, MIN_TEAM_CARDS,
                      PRIMETIME_BONUS, SEASON, SITE_TITLE)
 
@@ -107,12 +108,18 @@ def main():
             hist = load.load_history(args.season, first, raw["pbp"], model.CACHE)
         except Exception:
             log.exception("history load failed; building without the model")
+            health.error("history load failed: model skipped")
             hist = None
     log.info("season %s target week %s", args.season, week)
     if week < 3:
         raise SystemExit("need at least 2 played weeks")
 
     plays, flags = clean.prepare(raw, week)
+    health.info("week", week)
+    health.info("plays", int(len(plays)))
+    health.info("flags", flags)
+    health.info("sources", {k: raw.get(k) is not None for k in ("rosters", "part", "ftn")})
+    sum_counts = {"llm": 0, "rule": 0, "kept": 0, "cached": 0}
     games = sched[(sched["week"] == week) & (sched["game_type"] == "REG")]
     active = sorted(set(plays["posteam"].dropna()) | set(games["home_team"]) | set(games["away_team"]))
     M = context.team_meta(raw["teams"], active)
@@ -133,6 +140,7 @@ def main():
             preds, mmeta = model.run(hist, args.season, week, pctx["qb"], first)
         except Exception:
             log.exception("model failed; building without it")
+            health.error("model failed: Model tab skipped")
 
     e = plays[plays["eff"]]
     o_all, d_all = stats.opp_adjust(e, "epa")
@@ -166,6 +174,7 @@ def main():
             _write(wdir / f"{g.game_id}.json", prev_doc[g.game_id])
             board.append(prev_tile[g.game_id])
             log.info("kept pre-kickoff report for %s", g.game_id)
+            sum_counts["kept"] += 1
             continue
         game = {"span": span}
         cands = []
@@ -233,10 +242,12 @@ def main():
         prev = prev_doc.get(g.game_id, {})
         if prev.get("summary_hash") == fh and prev.get("summary"):
             summ, summ_src = prev["summary"], prev.get("summary_src", "llm")
+            sum_counts["cached"] += 1
         elif args.no_llm:
             summ, summ_src = summary.fallback(facts), "rule"
         else:
             summ, summ_src = summary.summarize(facts)
+            sum_counts[summ_src] += 1
         summ = agree(summ, plurals)
         doc = {"id": g.game_id, "season": args.season, "week": week, "away": a_, "home": h_, "kicker": kicker,
                "kickoff": kickoff(g), "primetime": prime, "line": ln, "leverage": lv, "summary": summ, "summary_src": summ_src, "summary_hash": fh,
@@ -247,7 +258,7 @@ def main():
                "model_cards": mcards}
         _write(wdir / f"{g.game_id}.json", doc)
         board.append({"id": g.game_id, "away": a_, "home": h_, "kickoff": kickoff(g), "primetime": prime,
-                      "line": ln, "leverage": lv["leverage"], "heat": heat,
+                      "line": ln, "leverage": lv["leverage"], "heat": heat, "ko": f"{g.gameday}T{g.gametime}",
                       "model": {"p_home": mp["p_home"], "mkt": mp["market"]["p_home"]} if mp else None,
                       "rank": lv["leverage"] + (PRIMETIME_BONUS if prime else 0.0),
                       "tease": [team_cards[0]["t1"], team_cards[0]["t2"]] if team_cards else None,
@@ -269,13 +280,23 @@ def main():
                   "games": len(board)})
     weeks.sort(key=lambda w: (w["season"], w["week"]))
     _write(idx_path, {"title": SITE_TITLE, "handle": HANDLE, "weeks": weeks, "site_url": SITE_URL,
-                      "buttondown": BUTTONDOWN_USERNAME or None,
+                      "buttondown": BUTTONDOWN_USERNAME or None, "goatcounter": GOATCOUNTER_CODE or None,
                       "latest": {"season": weeks[-1]["season"], "week": weeks[-1]["week"]}})
     log.info("feeds: %d items", feeds.build(site, M))
     if not raw.get("synthetic"):
-        assets.download(site, M, pctx["heads"], pctx["need_heads"])
+        nl, nh = assets.download(site, M, pctx["heads"], pctx["need_heads"])
+        if nl < len(M):
+            health.warn(f"logos: {nl}/{len(M)} downloaded")
         notify.send_week(wdir, M, [b["id"] for b in board], week)
     log.info("wrote %d games to %s", len(board), wdir)
+    health.info("games", len(board))
+    health.info("summaries", sum_counts)
+    health.info("model", {"ran": bool(mmeta), **({k: mmeta[k] for k in ("alpha", "sigma", "hfa", "n_train")} if mmeta else {})})
+    if not board:
+        health.error("no games written")
+    if os.environ.get("ANTHROPIC_API_KEY") and not args.no_llm and sum_counts["rule"]:
+        health.warn(f"LLM summary fell back to rule-based for {sum_counts['rule']} games (search the log for 'summary:')")
+    log.info("health: %s", health.write(site))
 
 
 if __name__ == "__main__":

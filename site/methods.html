@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Methods · The Drill Down</title>
+<meta name="description" content="How The Drill Down builds its NFL matchup cards, keys to success and win probabilities.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Nunito+Sans:opsz,wght@6..12,300;6..12,400;6..12,600;6..12,800;6..12,900&family=Barlow+Condensed:wght@500;600&display=swap" rel="stylesheet">
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<link rel="icon" href="favicon-32.png" type="image/png" sizes="32x32">
+<link rel="stylesheet" href="style.css?v=dev">
+</head>
+<body>
+<header class="bar">
+  <a class="brand" href="./#/" aria-label="The Drill Down home">
+    <svg class="brand-mark" viewBox="0 0 64 64" aria-hidden="true"><path d="M11 53C11 30 30 11 53 11C53 34 34 53 11 53Z" fill="#FB4F14"/><path d="M16.5 40.5L23.5 47.5M40.5 16.5L47.5 23.5M25 39L39 25" stroke="#0B0B0C" stroke-width="3" stroke-linecap="round"/><path d="M27 33.5L30.5 37M30.5 30L34 33.5M34 26.5L37.5 30" stroke="#0B0B0C" stroke-width="2.6" stroke-linecap="round"/></svg>
+    <span class="brand-name">THE DRILL<b>DOWN</b></span>
+  </a>
+  <nav class="pickers"><a class="follow-btn ghost" href="./#/">BACK TO GAMES</a></nav>
+</header>
+<main class="methods">
+  <h1>How it <span>works</span></h1>
+  <p class="lede">Every number on this site comes from open data and a fixed, published method. Nothing is hand-picked. This page explains what each metric means, how the data is cleaned and how the cards, keys and win probabilities are chosen.</p>
+
+  <nav class="toc" aria-label="On this page">
+    <a href="#data">Data</a><a href="#cleaning">Cleaning</a><a href="#metrics">Metrics</a><a href="#adjust">Adjustment</a>
+    <a href="#cards">Cards &amp; keys</a><a href="#model">Model</a><a href="#leverage">Leverage</a><a href="#limits">Limits</a><a href="#credits">Credits</a>
+  </nav>
+
+  <section id="data"><h2>Data</h2>
+    <p>Play-by-play, schedules and betting lines, rosters, injury reports, snap counts and FTN charting (play action, motion, blitzers, pass rushers, interception-worthy throws), all from <a href="https://github.com/nflverse">nflverse</a> through the <code>nflreadpy</code> package. The site rebuilds Thursday morning (full report and the Thursday line), then Saturday and Sunday morning (newer injury statuses for the model). Once a game kicks off, its report is frozen.</p>
+  </section>
+
+  <section id="cleaning"><h2>Cleaning</h2>
+    <ul>
+      <li><b>Plays:</b> regular-season passes and runs only. No kneels, spikes, penalty-only plays or special teams. Sacks and scrambles count as dropbacks.</li>
+      <li><b>Garbage time removed:</b> efficiency stats use plays with a win probability between 10% and 90%.</li>
+      <li><b>Neutral script:</b> tendency stats (how often a team throws) use a stricter filter: win probability 20% to 80%, a one-score game, and not the last 2 minutes of a half.</li>
+      <li><b>Recency:</b> each week's plays are weighted with a 6-week half-life, so recent form counts more.</li>
+    </ul>
+  </section>
+
+  <section id="metrics"><h2>Metrics</h2>
+    <dl class="gloss">
+      <dt id="epa">EPA (expected points added)</dt><dd>The change in expected points from before a play to after it, based on down, distance, field position and time. +0.10 EPA per play is good, 0 is average.</dd>
+      <dt id="success">Success rate</dt><dd>Share of plays with positive EPA.</dd>
+      <dt id="explosive">Explosive play rate</dt><dd>Share of plays that are dropbacks of 20+ yards or designed runs of 10+ yards.</dd>
+      <dt id="proe">Pass rate over expected (PROE)</dt><dd>Actual pass rate minus the nflverse expected pass rate for the same situations. Positive = throws more than a typical team would.</dd>
+      <dt id="cpoe">Completion % over expected (CPOE)</dt><dd>Completion rate minus the expected rate given throw depth and situation (nflverse model).</dd>
+      <dt id="adot">aDOT</dt><dd>Average depth of target: air yards per pass attempt. "Air yards vs. normal" for a defense compares opponents' aDOT against their own season average.</dd>
+      <dt id="yacoe">YAC over expected</dt><dd>Yards after catch minus the nflverse expected YAC for that catch.</dd>
+      <dt id="stuff">Stuff rate</dt><dd>Share of designed runs that gain 0 yards or less.</dd>
+      <dt id="pressure">Pressure rate</dt><dd>Share of dropbacks with pressure. When charted pressure data is not available for a season, the site uses QB hits plus sacks instead and labels it "QB hit + sack rate".</dd>
+      <dt id="shrunk">Shrunk to league mean</dt><dd>Small samples are pulled toward the league average in proportion to their noise (empirical Bayes, method of moments). A team with 40 plays moves more than a team with 400.</dd>
+      <dt id="brier">Brier score</dt><dd>Mean squared error of win probabilities. Lower is better. Always guessing 50% scores 0.250.</dd>
+      <dt id="shap">Factor contributions (SHAP)</dt><dd>How many points each model input pushes the projected margin. The model is linear, so these values are exact and sum to the projection.</dd>
+      <dt id="leverage-term">Playoff leverage</dt><dd>How much a game moves each team's playoff odds: P(playoffs if win) minus P(playoffs if loss), summed over both teams.</dd>
+    </dl>
+  </section>
+
+  <section id="adjust"><h2>Opponent adjustment</h2>
+    <p>Pass and rush EPA are opponent-adjusted with a play-level ridge regression: each play's EPA = offense effect + defense effect + home field. The ridge penalty equals the noise variance over the signal variance, so the regression is also the shrinkage. Passing ratings use only the projected starting QB's dropbacks.</p>
+  </section>
+
+  <section id="cards"><h2>Cards &amp; keys</h2>
+    <p>Each card template pairs an offensive measure with the same measure allowed by defenses. The edge for a matchup is z(offense) + z(opposing defense), where each z is the shrunk value over the raw league spread, so noisy stats score lower. Tendency cards (play action, blitz, man coverage) scale the edge by how often the choosing side uses it. Run-gap cards pick the best of 7 gaps, so they pay a fixed penalty for that extra choice. The top cards are shown, with at most 2 per phase. The 3 keys to success per team are the largest edges involving that team, one per phase: "EDGE" if it favors the team, "WATCH" if it does not.</p>
+    <p>The "Who has the edge" summary is written by an LLM from these keys and cards only. Every number it uses is checked against the data. If a check fails, a rule-based summary is shown, and the label says so.</p>
+  </section>
+
+  <section id="model"><h2>Win-probability model</h2>
+    <p>A ridge regression on the home team's margin, converted to a win probability with a normal distribution: P(win) = &Phi;(margin / &sigma;). Inputs (home minus away): passing matchup, rushing matchup, starting QB value (EPA per dropback, shrunk toward replacement level), offensive and defensive injury load (players listed Out, Doubtful or Questionable, weighted by recent snap share), rest, and home field. All inputs use only games before the one being predicted. The ridge penalty is picked by leave-one-season-out validation and &sigma; by log loss. The track record is a walk-forward backtest since 2018: each season is predicted by a model trained only on earlier seasons and scored against the closing line.</p>
+    <p>It is a different lens on the data, not betting advice. The market usually beats it.</p>
+  </section>
+
+  <section id="leverage"><h2>Playoff leverage &amp; standings</h2>
+    <p>The rest of the season is simulated 10,000 times. This week's games use the market spread, and later games use the model's ratings, regressed toward even. Seeding uses the main NFL tiebreakers (head-to-head, division record, conference record, point differential) and is approximate.</p>
+  </section>
+
+  <section id="limits"><h2>Limits</h2>
+    <ul>
+      <li>Mid-season samples are small. Shrinkage helps, but single-game swings still matter.</li>
+      <li>Charted data (coverage shells, true pressure) is not always available for the current season. Cards that need it are skipped.</li>
+      <li>Injury reports change after Friday. Inactives announced 90 minutes before kickoff are not included.</li>
+    </ul>
+  </section>
+
+  <section id="credits"><h2>Credits</h2>
+    <p>Data: <a href="https://github.com/nflverse">nflverse</a> and FTN charting. Visual style inspired by <a href="https://x.com/benwolby">@benwolby</a>. Matchup page idea from <a href="https://raycarp.com">Ray Carpenter</a>.</p>
+  </section>
+</main>
+<footer class="foot-site"><p>The Drill Down · a different lens on the data, not betting advice.</p></footer>
+</body>
+</html>

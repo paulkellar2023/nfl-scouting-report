@@ -482,19 +482,42 @@ const CHARTS = { scatter, pscatter, duel, bars, gaps, splits, trend, pstrip, pro
 
 
 /* ---------- card ---------- */
+const GLOSS = [
+  [/\bEPA\b/i, "epa", "EPA: change in expected points from a play (down, distance, field position, time). 0 = average."],
+  [/success/i, "success", "Success rate: share of plays with positive EPA."],
+  [/explosive|big-play/i, "explosive", "Explosive: 20+ yard dropbacks or 10+ yard designed runs."],
+  [/over expected|PROE|throws (more|early)/i, "proe", "Over expected: actual minus nflverse's expected rate for the same situations."],
+  [/completion %|CPOE/i, "cpoe", "CPOE: completion % over expected, given throw depth and situation."],
+  [/aDOT|depth of target|air yards/i, "adot", "aDOT: average air yards per pass attempt."],
+  [/\bYAC\b/i, "yacoe", "YAC over expected: yards after catch minus nflverse's expected YAC."],
+  [/stuff/i, "stuff", "Stuff rate: designed runs for 0 yards or less."],
+  [/pressure|QB hit/i, "pressure", "Pressure rate. If charted pressure is unavailable, QB hits + sacks are used instead."],
+  [/opponent-adjusted/i, "adjust", "Opponent-adjusted: ridge regression of offense + defense + home field."],
+  [/shrunk/i, "shrunk", "Shrunk: small samples pulled toward league average in proportion to noise."],
+  [/brier/i, "brier", "Brier score: squared error of win probabilities. Lower is better; 0.250 = coin flip."],
+  [/SHAP|factor/i, "shap", "Factor values: each input's push on the projected margin, in points."],
+];
+function tipHTML(c) {
+  const text = [c.t1, c.t2, c.sub, c.note, c.chart.x_label, c.chart.y_label, c.chart.axis].filter(Boolean).join(" ");
+  const defs = GLOSS.filter(([re]) => re.test(text)).slice(0, 4);
+  return `<b>SOURCE:</b> ${esc(c.source)} · ${esc(c.note)}` + defs.map(d => `<span>${esc(d[2])}</span>`).join("") +
+    `<a href="methods.html#${defs[0] ? defs[0][1] : "metrics"}">How we calculate this &rarr;</a>`;
+}
+
 function cardEl(c, g) {
   const m = T(c.owner), card = h("article", { class: "card", style: `--acc:${m.accent}` });
   card.innerHTML = `<div class="top"><div class="kicker">${esc(g.kicker)}</div>
     <div class="logos">${logoHTML(g.away)}${logoHTML(g.home)}
-      <button type="button" class="info" aria-label="Source and notes" data-tip="SOURCE: ${esc(c.source)} · ${esc(c.note)}">i</button></div></div>
+      <span class="info-wrap"><button type="button" class="info" aria-label="Source, definitions and method">i</button><span class="tip" role="tooltip">${tipHTML(c)}</span></span></div></div>
     <h3 class="t1">${esc(c.t1)}</h3><h3 class="t2">${esc(c.t2)}</h3>
     <p class="sub">${esc(c.sub)}</p>
     <div class="chart"></div>
     <div class="foot"><small><b>SOURCE: ${esc(c.source)}</b> &middot; ${esc(c.note)}</small>${S.handle ? `<strong>${esc(S.handle)}</strong>` : ""}</div>
-    <div class="card-actions"><button type="button" data-act="png">PNG</button><button type="button" data-act="link">LINK</button></div>`;
+    <div class="card-actions"><button type="button" data-act="copy">COPY IMAGE</button><button type="button" data-act="png">PNG</button><button type="button" data-act="link">LINK</button></div>`;
   const f = CHARTS[c.chart.type];
   if (f) $(".chart", card).appendChild(f(c.chart));
   card.querySelector('[data-act="png"]').onclick = () => exportPng(card, c);
+  card.querySelector('[data-act="copy"]').onclick = () => copyPng(card);
   card.querySelector('[data-act="link"]').onclick = e => {
     navigator.clipboard?.writeText(location.href.split("?")[0] + "?card=" + encodeURIComponent(c.id));
     e.target.textContent = "COPIED"; setTimeout(() => (e.target.textContent = "LINK"), 1200);
@@ -503,22 +526,38 @@ function cardEl(c, g) {
   return card;
 }
 let h2i = null;
+async function cardBlob(card) {
+  if (!h2i) {
+    await new Promise((res, rej) => { const sc = document.createElement("script");
+      sc.src = "https://cdn.jsdelivr.net/npm/html-to-image@1.11.11/dist/html-to-image.js"; sc.onload = res; sc.onerror = rej; document.head.appendChild(sc); });
+    h2i = window.htmlToImage;
+  }
+  const stage = h("div", { class: "export-stage" }), clone = card.cloneNode(true);
+  clone.querySelector(".card-actions").remove(); clone.querySelector(".info-wrap")?.remove();
+  clone.classList.add("exporting"); clone.style.animation = "none"; clone.style.borderRadius = "0"; clone.style.border = "0";
+  stage.appendChild(clone); document.body.appendChild(stage);
+  try { return await h2i.toBlob(clone, { pixelRatio: 2, backgroundColor: "#0B0B0C", width: 1080 }); }
+  finally { stage.remove(); }
+}
 async function exportPng(card, c) {
-  const btn = card.querySelector('[data-act="png"]'); btn.textContent = "…";
+  const btn = card.querySelector('[data-act="png"]'); btn.textContent = "\u2026";
   try {
-    if (!h2i) {
-      await new Promise((res, rej) => { const s = document.createElement("script");
-        s.src = "https://cdn.jsdelivr.net/npm/html-to-image@1.11.11/dist/html-to-image.js"; s.onload = res; s.onerror = rej; document.head.appendChild(s); });
-      h2i = window.htmlToImage;
-    }
-    const stage = h("div", { class: "export-stage" }), clone = card.cloneNode(true);
-    clone.querySelector(".card-actions").remove(); clone.querySelector(".info")?.remove(); clone.classList.add("exporting"); clone.style.animation = "none"; clone.style.borderRadius = "0"; clone.style.border = "0";
-    stage.appendChild(clone); document.body.appendChild(stage);
-    const url = await h2i.toPng(clone, { pixelRatio: 2, backgroundColor: "#0B0B0C", width: 1080 });
-    stage.remove();
+    const url = URL.createObjectURL(await cardBlob(card));
     const a = document.createElement("a"); a.href = url; a.download = (c.id.replace(/[^a-z0-9]/gi, "_") || "card") + ".png"; a.click();
+    setTimeout(() => URL.revokeObjectURL(url), 5000);
   } catch (e) { console.error(e); alert("PNG export failed. Try again after the page finishes loading."); }
   btn.textContent = "PNG";
+}
+async function copyPng(card) {
+  const btn = card.querySelector('[data-act="copy"]');
+  if (!navigator.clipboard || !window.ClipboardItem) { btn.textContent = "USE PNG"; setTimeout(() => (btn.textContent = "COPY IMAGE"), 1500); return; }
+  btn.textContent = "\u2026";
+  try {
+    // Safari needs the ClipboardItem created synchronously in the click, with a promise for the data.
+    await navigator.clipboard.write([new ClipboardItem({ "image/png": cardBlob(card) })]);
+    btn.textContent = "COPIED";
+  } catch (e) { console.error(e); btn.textContent = "FAILED"; }
+  setTimeout(() => (btn.textContent = "COPY IMAGE"), 1500);
 }
 
 /* ---------- views ---------- */
@@ -536,10 +575,24 @@ function showLoading(msg) {
 function board() {
   const app = $("#app"), G = S.games;
   const maxLev = Math.max(0.01, ...G.games.map(g => g.leverage));
+  let sortBy = "leverage";
+  try { sortBy = localStorage.getItem("boardSort") || "leverage"; } catch (e) { /* storage blocked */ }
+  const gap = g => g.model && g.model.mkt !== null && g.model.mkt !== undefined ? Math.abs(g.model.p_home - g.model.mkt) : -1;
+  const dis = G.games.filter(g => gap(g) >= 0.08).sort((x, y) => gap(y) - gap(x)).slice(0, 3);
   app.innerHTML = `<div class="board-head"><h1>Week ${G.week} <span>matchups</span></h1>
-    <p>Ordered by playoff leverage. Edges: offense vs. opposing defense, z-units.</p></div><div class="grid"></div>`;
+    <label class="sortby">SORT <select aria-label="Sort games"><option value="leverage">Playoff leverage</option><option value="gap">Model vs. market gap</option><option value="ko">Kickoff time</option></select></label></div>
+    ${dis.length ? `<section class="disagree"><h2>Where the model disagrees most</h2><div>${dis.map(g => {
+      const side = g.model.p_home > g.model.mkt ? g.home : g.away, pm = side === g.home ? g.model.p_home : 1 - g.model.p_home, pk = side === g.home ? g.model.mkt : 1 - g.model.mkt;
+      return `<a class="dis" href="#/${G.season}/${G.week}/${g.id}?tab=model" style="--acc:${T(side).accent}">${logoHTML(side)}<span><b>${esc(T(side).nick)}</b> model ${Math.round(pm * 100)}% · market ${Math.round(pk * 100)}%</span><em>+${Math.round((pm - pk) * 100)}</em></a>`;
+    }).join("")}</div></section>` : ""}
+    <p class="board-note">Edges: offense vs. opposing defense, in z-units. <a href="methods.html#cards">How it works</a></p><div class="grid"></div>`;
+  const sel = $(".sortby select", app); sel.value = sortBy;
+  sel.onchange = () => { try { localStorage.setItem("boardSort", sel.value); } catch (e) { /* storage blocked */ } board(); };
+  const order = [...G.games];
+  if (sortBy === "gap") order.sort((x, y) => gap(y) - gap(x));
+  else if (sortBy === "ko") order.sort((x, y) => (x.ko || "").localeCompare(y.ko || ""));
   const grid = $(".grid", app);
-  G.games.forEach((g, i) => {
+  order.forEach((g, i) => {
     const a = T(g.away), hm = T(g.home), tile = h("a", { class: "tile", href: `#/${G.season}/${G.week}/${g.id}`,
       style: `--a:${a.accent};--h:${hm.accent};--acc:${T(g.tease_owner || g.home).accent};animation-delay:${i * 30}ms` });
     const imp = g.line && g.line.implied ? `${g.away} ${g.line.implied[g.away]} · ${g.home} ${g.line.implied[g.home]}` : "";
@@ -617,6 +670,15 @@ async function loadWeek(season, week) {
   const b = $("#banner");
   b.hidden = !S.games.synthetic; b.textContent = "SYNTHETIC TEST DATA · NOT REAL NFL STATS";
   $("#built").textContent = `Built ${S.games.built} · ${S.games.span}`;
+  getJSON("data/health.json").then(hl => {
+    const el2 = $("#health"), n = hl.warnings.length + hl.errors.length;
+    el2.className = "health " + hl.status;
+    el2.textContent = hl.status === "ok" ? "Data checks OK" : `${n} data check${n > 1 ? "s" : ""} flagged`;
+    el2.title = [...hl.errors, ...hl.warnings].join("\n") || `Checked ${hl.checked}`;
+  }).catch(() => {});
+}
+function track() {
+  try { window.goatcounter?.count?.({ path: location.pathname + location.hash.replace(/\?.*$/, ""), title: document.title }); } catch (e) { /* analytics optional */ }
 }
 async function route() {
   const [path, q] = location.hash.replace(/^#\/?/, "").split("?");
@@ -630,6 +692,7 @@ async function route() {
   $("#game-select").value = id;
   window.scrollTo(0, 0);
   if (id) await matchup(id, params.get("tab"), params.get("card")); else board();
+  track();
 }
 function setupFollow() {
   const dlg = $("#follow"), sel = $("#follow-team"), base = S.idx.site_url || location.href.split("#")[0];
@@ -658,6 +721,13 @@ async function init() {
   ws.onchange = () => { location.hash = `#/${ws.value}`; };
   $("#game-select").onchange = e => { const [s, w] = ws.value.split("/"); location.hash = `#/${s}/${w}${e.target.value ? "/" + e.target.value : ""}`; };
   setupFollow();
+  if (S.idx.goatcounter) {
+    const gc = document.createElement("script");
+    gc.async = true; gc.src = "https://gc.zgo.at/count.js";
+    gc.dataset.goatcounter = `https://${S.idx.goatcounter}.goatcounter.com/count`;
+    gc.dataset.goatcounterSettings = JSON.stringify({ no_onload: true });
+    gc.onload = track; document.head.appendChild(gc);
+  }
   window.addEventListener("hashchange", route);
   route();
 }

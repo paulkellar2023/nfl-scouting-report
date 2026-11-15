@@ -41,3 +41,4 @@ def download(site, meta, heads, need_heads):
     for f in list((Path(site) / "assets").glob("*/*.png")):
         shrink(f)
     log.info("assets: %d/%d logos, %d/%d headshots", ok_logos, len(meta), ok_heads, len(need_heads))
+    return ok_logos, ok_heads

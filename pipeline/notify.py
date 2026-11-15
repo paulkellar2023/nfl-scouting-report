@@ -6,6 +6,7 @@ import logging
 import os
 from pathlib import Path
 
+from . import health
 from .config import EMAIL_MODE, SITE_TITLE, SITE_URL
 
 log = logging.getLogger(__name__)
@@ -86,5 +87,8 @@ def send_week(wdir, teams, ordered_ids, week):
         except Exception as e:  # one failed email must not stop the others or the build
             log.warning("email: %s failed: %s %s", tag, e, getattr(getattr(e, "response", None), "text", "")[:300])
     log.info("email: %d/%d %s created for week %s", ok, len(jobs), status, week)
+    health.info("email", {"created": ok, "total": len(jobs), "status": status})
+    if ok < len(jobs):
+        health.warn(f"email: only {ok}/{len(jobs)} {status}s created (search the log for 'email:')")
     if ok:
         marker.write_text(json.dumps({"week": week, "status": status, "created": ok}))

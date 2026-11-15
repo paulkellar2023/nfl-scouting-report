@@ -24,6 +24,7 @@
   <nav class="pickers">
     <label><span>Week</span><select id="week-select" aria-label="Week"></select></label>
     <label class="wide"><span>Matchup</span><select id="game-select" aria-label="Matchup"></select></label>
+    <a class="follow-btn ghost" href="methods.html">METHODS</a>
     <button type="button" id="follow-btn" class="follow-btn" aria-haspopup="dialog">FOLLOW</button>
   </nav>
 </header>
@@ -51,7 +52,7 @@
 </dialog>
 <footer class="foot-site">
   <p>Data: <a href="https://github.com/nflverse">nflverse</a> play-by-play, participation and FTN charting via nflreadpy. Lines from nflverse schedules. Garbage time removed, opponent-adjusted where noted, shrunk toward league mean.</p>
-  <p id="built"></p>
+  <p><span id="built"></span> · <span id="health" class="health"></span> · <a href="methods.html">Methods</a> · <a href="feeds/all.xml">RSS</a></p>
 </footer>
 <script src="app.js?v=dev"></script>
 </body>
