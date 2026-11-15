@@ -86,6 +86,15 @@ class Cards:
         tab = t.deff if side == "def" else t.off
         return S.rank(tab, team, -sign if side == "def" else sign), int(tab["value_s"].notna().sum())
 
+    def watch(self, a, b, cards):
+        """QB duel by EPA/dropback rank, plus the highest-scoring non-QB player card as the x-factor."""
+        tab = self.T["qb_epa"]
+        n = int(tab["value_s"].notna().sum())
+        qbs = [{"team": self.M[t]["label"], "name": self._name(q), "rank": _rank(tab, q), "of": n}
+               for q, t in self._pair(tab, a, b)]
+        x = next((c for c in cards if not c["id"].startswith("qb_")), None)
+        return {"qbs": qbs, "xfactor": {"team": self.M[x["owner"]]["label"], "headline": x["t1"], "detail": x["t2"]} if x else None}
+
     def all(self, a, b):
         out = []
         for f in (self.qb_epa, self.qb_pressure, self.qb_cpoe, self.qb_man, self.rb, self.wr_share, self.rec_yac):
@@ -253,8 +262,10 @@ class Cards:
         z = (sh["wopr"] - sh["wopr"].mean()) / sh["wopr"].std()
         own, ot = max(pr, key=lambda x: z.get(x[0], 0))
         nm = self._name(own)
-        l1 = f"{nm} gets {fmt(sh.loc[own, 'tgt_share'], 'pct')} of {poss(self.M[ot]['label'])} targets."
-        l2 = f"And {fmt(sh.loc[own, 'air_share'], 'pct')} of the air yards."
+        opp = b if ot == a else a
+        rp_, np_ = self._team_rank("pass_epa", opp, "def", 1)
+        l1 = f"{nm} gets {fmt(sh.loc[own, 'tgt_share'], 'pct')} of {poss(self.M[ot]['label'])} targets and {fmt(sh.loc[own, 'air_share'], 'pct')} of its air yards."
+        l2 = f"{poss(self.M[opp]['label'])} pass defense ranks {ordinal(rp_)}." if rp_ else "The offense runs through him."
         hl = {p for p, _ in pr}
         pts = [self._pt(p, p in hl, x=r.tgt_share, y=r.air_share) for p, r in sh.iterrows()]
         return self._card(f"wr_share:{own}", ot, float(z.get(own, 0)), l1, l2,

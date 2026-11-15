@@ -219,10 +219,7 @@ def main():
                  "keys": {t: [{"phrase": k["phrase"], "detail": k["detail"], "favorable": k["favorable"]} for k in keys[t]] for t in keys},
                  "storylines": [{"team": labels.get(c["owner"], c["owner"]), "text": f"{c['t1']} {c['t2']}"}
                                 for c in team_cards[:4]],
-                 "players": [{"team": labels.get(c["owner"], c["owner"]), "headline": c["t1"], "detail": c["t2"]}
-                             for c in ([next(c for c in player_cards if c["owner"] == t) for t in (a_, h_)
-                                        if any(c["owner"] == t for c in player_cards)]
-                                       or player_cards[:2])],
+                 "players": pc.watch(a_, h_, player_cards),
                  "model": None}
         if mp:
             fav = h_ if mp["p_home"] >= 0.5 else a_

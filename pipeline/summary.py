@@ -15,7 +15,8 @@ SYSTEM = (
     "You write three-sentence NFL matchup previews for a technical analytics audience.\n"
     "Sentence 1: say that the team named in `lean` has the edge on paper (or that it is close, if `lean` is "
     "'close'), with its strongest reason from `keys`, then the other team's best counter-edge, with numbers.\n"
-    "Sentence 2: the key players to watch, from `players`, with their numbers.\n"
+    "Sentence 2: from `players`, compare the two quarterbacks by their EPA per dropback ranks, then name the "
+    "x-factor player with his number and the matchup it meets.\n"
     "Sentence 3: the model's main reasons, from `model`: its favorite, win probability and the top factors "
     "with their point values. If `model` is null, write about the market from `market_win_pct` instead.\n"
     "Rules: use only facts and numbers from the JSON. Do not add statistics, injuries, records, history or "
@@ -29,7 +30,7 @@ def _nums(s):
     return {n.lstrip("+-").rstrip("0").rstrip(".") or "0" for n in _NUM.findall(s)}
 
 
-VERSION = "3"  # bump to regenerate cached summaries after a prompt or fallback change
+VERSION = "5"  # bump to regenerate cached summaries after a prompt or fallback change
 
 
 def facts_hash(facts):
@@ -41,6 +42,10 @@ def lean(home, away, model_p, market_p, labels):
     if p is None or abs(p - 0.5) < 0.05:
         return "close"
     return labels[home] if p > 0.5 else labels[away]
+
+
+def _ord(n):
+    return f"{n}{'th' if 10 <= n % 100 <= 20 else {1: 'st', 2: 'nd', 3: 'rd'}.get(n % 10, 'th')}"
 
 
 def _clause(k):
@@ -64,9 +69,20 @@ def fallback(facts):
     if k2:
         s += f", while {labels[other]}'s best counter is to {k2['phrase'][0].lower() + k2['phrase'][1:]} ({_clause(k2)})"
     out = [s + "."]
-    pl = [p["headline"].rstrip(".") for p in facts.get("players", [])[:2]]
-    if pl:
-        out.append("Players to watch: " + "; ".join(pl) + ".")
+    pw = facts.get("players") or {}
+    qbs, xf = pw.get("qbs", []), pw.get("xfactor")
+    parts = []
+    if len(qbs) == 2:
+        q1, q2 = sorted(qbs, key=lambda q: q["rank"])
+        parts.append(f"Under center, {q1['name']} ranks {_ord(q1['rank'])} of {q1['of']} in EPA per dropback and "
+                     f"{q2['name']} ranks {_ord(q2['rank'])}")
+    elif qbs:
+        parts.append(f"Under center, {qbs[0]['name']} ranks {_ord(qbs[0]['rank'])} of {qbs[0]['of']} in EPA per dropback")
+    if xf:
+        d = xf["detail"].rstrip(".")
+        parts.append(f"x-factor: {xf['headline'].rstrip('.')}" + (f", and {d[0].lower() + d[1:] if d.startswith('The ') else d}" if d else ""))
+    if parts:
+        out.append("; ".join(parts) + ".")
     m = facts.get("model")
     if m and m["top_factors"]:
         f = [f"{x['label'].lower().replace('qb', 'QB')} ({x['points']:.1f} pts)" for x in m["top_factors"][:2]]
