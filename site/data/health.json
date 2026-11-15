@@ -1,8 +1,8 @@
 {
  "status": "warn",
- "checked": "2026-11-15T20:59Z",
+ "checked": "2026-11-15T21:26Z",
  "warnings": [
-  "LLM summary fell back to rule-based for 1 games (search the log for 'summary:')"
+  "LLM summary fell back to rule-based for 2 games (search the log for 'summary:')"
  ],
  "errors": [],
  "info": {
@@ -19,17 +19,40 @@
    "part": false,
    "ftn": true
   },
+  "extras": [
+   "box_def",
+   "box_off",
+   "press_def",
+   "press_off",
+   "qb_aggr",
+   "qb_ttt",
+   "rb_ryoe",
+   "tackle_def",
+   "tackle_off",
+   "wr_cush",
+   "wr_sep"
+  ],
+  "fpi": {
+   "found": 2,
+   "games": 2
+  },
   "recaps": {
    "graded": 0,
    "published": 0,
    "walk": 135
   },
+  "email": {
+   "created": 1,
+   "total": 1,
+   "status": "draft"
+  },
   "games": 14,
+  "projected_games": 122,
   "summaries": {
    "llm": 0,
-   "rule": 1,
-   "kept": 9,
-   "cached": 4
+   "rule": 2,
+   "kept": 12,
+   "cached": 0
   },
   "model": {
    "ran": true,
