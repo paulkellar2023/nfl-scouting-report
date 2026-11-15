@@ -19,6 +19,9 @@ on:
         description: "Rebuild games that already kicked off (testing only)"
         type: boolean
         default: false
+      backfill_weeks:
+        description: "Also backfill past weeks first, e.g. 3-9 (blank = none; week 3 is the earliest)"
+        required: false
 
 permissions:
   contents: write
@@ -51,6 +54,10 @@ jobs:
           if [ -n "${{ inputs.week }}" ]; then ARGS="$ARGS --week ${{ inputs.week }}"; fi
           if [ "${{ inputs.synthetic }}" = "true" ]; then ARGS="$ARGS --synthetic"; fi
           if [ "${{ inputs.refresh_started }}" = "true" ]; then ARGS="$ARGS --refresh-started"; fi
+          if [ -n "${{ inputs.backfill_weeks }}" ]; then
+            FROM="${{ inputs.backfill_weeks }}"; FROM="${FROM%-*}"; TO="${{ inputs.backfill_weeks }}"; TO="${TO#*-}"
+            for W in $(seq "$FROM" "$TO"); do python -m pipeline.build --week "$W" --backfill; done
+          fi
           python -m pipeline.build $ARGS
       - name: Commit data
         run: |

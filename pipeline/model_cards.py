@@ -21,7 +21,7 @@ def _card(cid, owner, t1, t2, sub, chart, note, score=1.0):
             "t1": t1, "t2": t2, "sub": sub, "chart": chart, "source": SRC, "note": note}
 
 
-def build(mp, meta, M, names, fpi=None):
+def build(mp, meta, M, names):
     h, a = mp["home"], mp["away"]
     H, A = M[h]["label"], M[a]["label"]
     lab = {h: H, a: A}
@@ -41,7 +41,7 @@ def build(mp, meta, M, names, fpi=None):
         cards.append(_card("market", side if abs(gap) >= 0.03 else fav, t1, t2,
                            f"Win probability. Market = {'vig-free moneyline' if mp['market']['source'] == 'moneyline' else 'spread converted to probability'} at build time.",
                            {"type": "probbars", "home": h, "away": a,
-                            "rows": [{"label": "MODEL", "p": ph}, {"label": "MARKET", "p": pm}] + ([{"label": "ESPN FPI", "p": fpi}] if fpi is not None else [])},
+                            "rows": [{"label": "MODEL", "p": ph}, {"label": "MARKET", "p": pm}]},
                            "Not betting advice · market line at build time"))
 
     items = sorted([c for c in mp["contribs"] if abs(c["pts"]) >= 0.05], key=lambda c: -abs(c["pts"]))
@@ -111,7 +111,7 @@ def build(mp, meta, M, names, fpi=None):
     return cards
 
 
-def summary(mp, M, fpi=None):
+def summary(mp, M):
     h, a = mp["home"], mp["away"]
     lab = {h: M[h]["label"], a: M[a]["label"]}
     fav, pf = _fav(mp["p_home"], h, a)
@@ -120,9 +120,6 @@ def summary(mp, M, fpi=None):
     if pm is not None:
         mf, mpf = _fav(pm, h, a)
         s += f" Market: {lab[mf]} {fmt(mpf, 'pct')}."
-    if fpi is not None:
-        ff, fpf = _fav(fpi, h, a)
-        s += f" ESPN FPI: {lab[ff]} {fmt(fpf, 'pct')}."
     items = sorted(mp["contribs"], key=lambda c: -abs(c["pts"]))
     if items and abs(items[0]["pts"]) >= 0.3:
         t = h if items[0]["pts"] > 0 else a

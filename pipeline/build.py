@@ -10,7 +10,7 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-from . import (assets, bracket, clean, context, espn, extras, feeds, health, league, leverage, model, model_cards, notify,
+from . import (assets, bracket, clean, context, extras, feeds, health, league, leverage, model, model_cards, notify,
                record, share, stats, story, summary, templates_player, templates_team)
 from .text import agree
 from .config import BUTTONDOWN_USERNAME, EMAIL_PER_TEAM, GOATCOUNTER_CODE, MODEL_FIRST_SEASON, SITE_URL
@@ -98,6 +98,8 @@ def main():
     ap.add_argument("--site", default="site")
     ap.add_argument("--no-llm", action="store_true")
     ap.add_argument("--refresh-started", action="store_true", help="rebuild games that already kicked off (testing)")
+    ap.add_argument("--backfill", action="store_true",
+                    help="build a past week after the fact (data before that week only); leaves projections, bracket and email alone")
     args = ap.parse_args()
     logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s: %(message)s")
 
@@ -124,6 +126,8 @@ def main():
     log.info("season %s target week %s", args.season, week)
     if week < 3:
         raise SystemExit("need at least 2 played weeks")
+    if args.backfill and not args.week:
+        raise SystemExit("--backfill needs --week")
 
     plays, flags = clean.prepare(raw, week)
     health.info("week", week)
@@ -168,12 +172,16 @@ def main():
     ddir = site / "data" / str(args.season)
     idx_path = site / "data" / "index.json"
     idx = json.loads(idx_path.read_text()) if idx_path.exists() else {"weeks": []}
-    # projections from the last build are rebuilt from scratch
-    for w in [w for w in idx.get("weeks", []) if w.get("projected") or w["week"] == "PO"]:
-        shutil.rmtree(site / "data" / str(w["season"]) / wname(w["week"]), ignore_errors=True)
-    idx["weeks"] = [w for w in idx.get("weeks", []) if not (w.get("projected") or w["week"] == "PO")]
+    # projections from the last build are rebuilt from scratch (a backfill leaves them alone)
+    if not args.backfill:
+        for w in [w for w in idx.get("weeks", []) if w.get("projected") or w["week"] == "PO"]:
+            shutil.rmtree(site / "data" / str(w["season"]) / wname(w["week"]), ignore_errors=True)
+        idx["weeks"] = [w for w in idx.get("weeks", []) if not (w.get("projected") or w["week"] == "PO")]
 
     wdir = ddir / wname(week)
+    if args.backfill and (wdir / "games.json").exists() and not json.loads((wdir / "games.json").read_text()).get("backfill"):
+        log.info("backfill: week %s already has a live report, skipping", week)
+        return
     prev_line, prev_doc, prev_tile = {}, {}, {}
     if wdir.exists():
         for f in wdir.glob(f"{args.season}_*.json"):
@@ -192,7 +200,6 @@ def main():
     now = dt.datetime.now(dt.timezone.utc)
     built = now.strftime("%Y-%m-%dT%H:%MZ")
     span = f"Weeks 1-{week - 1}, {args.season}" if week > 2 else f"Week 1, {args.season}"
-    n_fpi = [0, 0]
 
     def make(g, mode, label, ko_text=None, neutral=False):
         """mode: live (this week) | proj (future regular-season week) | po (playoff game)."""
@@ -234,12 +241,7 @@ def main():
             mp = predict(h_, a_, neutral, rest, g.get("spread_line"), g.get("home_moneyline"), g.get("away_moneyline"))
         else:
             mp = None
-        fpi = None
-        if mode == "live" and not synth_run:
-            n_fpi[1] += 1
-            fpi = espn.fpi_home(g.get("espn"))
-            n_fpi[0] += fpi is not None
-        mcards = model_cards.build(mp, mmeta, M, pctx["names"], fpi) if mp else []
+        mcards = model_cards.build(mp, mmeta, M, pctx["names"]) if mp else []
         kicker = f"{M[a_]['nick']} at {M[h_]['nick']} · {label}, {args.season}".upper()
         plurals = [M[t]["label"] for t in (a_, h_) if M[t].get("plural")]
         for c in team_cards + player_cards + mcards:
@@ -290,13 +292,13 @@ def main():
                "summary_src": summ_src, "summary_hash": fh, "keys": keys, "heat": heat, "team_cards": team_cards,
                "player_cards": player_cards, "team_n": team_n, "player_n": player_n, "built": built,
                "after_kickoff": kicked_off(g, now) if mode == "live" else False, "line_asof": ln_asof, "line_now": ln_now,
-               "mode": mode, "through_week": week - 1, "fpi": fpi,
+               "mode": mode, "through_week": week - 1, "backfill": args.backfill,
                "model": ({"p_home": mp["p_home"], "margin": mp["margin"], "market": mp["market"],
-                          "summary": agree(model_cards.summary(mp, M, fpi), plurals)} if mp else None),
+                          "summary": agree(model_cards.summary(mp, M), plurals)} if mp else None),
                "model_cards": mcards}
         tile = {"id": g.game_id, "away": a_, "home": h_, "kickoff": ko, "primetime": prime,
                 "line": ln, "leverage": lv["leverage"], "heat": heat, "ko": f"{g.get('gameday')}T{g.get('gametime')}",
-                "model": {"p_home": mp["p_home"], "mkt": mp["market"]["p_home"], "fpi": fpi} if mp else None,
+                "model": {"p_home": mp["p_home"], "mkt": mp["market"]["p_home"]} if mp else None,
                 "rank": lv["leverage"] + (PRIMETIME_BONUS if prime else 0.0),
                 "tease": [team_cards[0]["t1"], team_cards[0]["t2"]] if team_cards else None,
                 "tease_owner": team_cards[0]["owner"] if team_cards else None}
@@ -321,12 +323,21 @@ def main():
     if mmeta:
         _write(wdir / "model_meta.json", {k: v for k, v in mmeta.items() if k != "season_walk"})
     _write(wdir / "games.json", {"season": args.season, "week": week, "built": built, "span": span,
-                                 "synthetic": synth_run, "flags": flags, "games": board})
-    if not synth_run and n_fpi[1]:
-        health.info("fpi", {"found": n_fpi[0], "games": n_fpi[1]})
-        if n_fpi[0] < n_fpi[1]:
-            health.warn(f"ESPN FPI found for {n_fpi[0]}/{n_fpi[1]} games (shown as '-')")
-    new_weeks = [{"season": args.season, "week": week, "built": built, "synthetic": synth_run, "games": len(board)}]
+                                 "synthetic": synth_run, "flags": flags, "backfill": args.backfill, "games": board})
+    new_weeks = [{"season": args.season, "week": week, "built": built, "synthetic": synth_run, "games": len(board),
+                  **({"backfill": True} if args.backfill else {})}]
+    if args.backfill:
+        weeks = [w for w in idx["weeks"] if not (w["season"] == args.season and w["week"] == week)] + new_weeks
+        weeks.sort(key=lambda w: (w["season"], w["week"] if isinstance(w["week"], int) else 99))
+        idx["weeks"] = weeks
+        if not idx.get("latest"):
+            idx["latest"] = {"season": args.season, "week": week}
+        idx.setdefault("title", SITE_TITLE)
+        idx.setdefault("site_url", SITE_URL)
+        _write(idx_path, idx)
+        _write(site / "data" / "teams.json", M)
+        log.info("backfill: wrote %d games to %s (%d new preview images)", len(board), wdir, share.write(site, docs, M))
+        return
 
     # ---------- projected weeks through week 18 ----------
     fut = sorted(int(w) for w in reg["week"].unique() if week < int(w) <= LAST_REG_WEEK)

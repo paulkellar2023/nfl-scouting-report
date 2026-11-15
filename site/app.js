@@ -59,10 +59,10 @@ function favTxt(p, home, away) {
   const r = Math.round(p * 100);
   return r === 50 ? "EVEN" : r > 50 ? `${home} ${r}%` : `${away} ${100 - r}%`;
 }
-function threeHTML(m, home, away) {
-  return `<div class="mline"><div><span>MODEL</span><b>${favTxt(m.p_home, home, away)}</b></div><div><span>MARKET</span><b>${favTxt(m.mkt, home, away)}</b></div><div><span>ESPN FPI</span><b>${favTxt(m.fpi, home, away)}</b></div></div>`;
+function numsHTML(m, home, away) {
+  return `<div class="mline"><div><span>MODEL</span><b>${favTxt(m.p_home, home, away)}</b></div><div><span>MARKET</span><b>${favTxt(m.mkt, home, away)}</b></div></div>`;
 }
-const wkLabel = w => w.week === "PO" ? `Playoffs${w.projected ? " (projected)" : ""}` : `Week ${w.week}${w.projected ? " (projected)" : ""}`;
+const wkLabel = w => w.week === "PO" ? `Playoffs${w.projected ? " (projected)" : ""}` : `Week ${w.week}${w.projected ? " (projected)" : w.backfill ? " (backfilled)" : ""}`;
 const T = t => S.teams[t] || { accent: "#BBBBBB", color: "#444", label: t, nick: t, abbr: t };
 async function getJSON(p) { const r = await fetch(p, { cache: "no-cache" }); if (!r.ok) throw new Error(p); return r.json(); }
 const gameCache = {};
@@ -623,7 +623,7 @@ function board() {
   try { sortBy = localStorage.getItem("boardSort") || "leverage"; } catch (e) { /* storage blocked */ }
   const gap = g => g.model && g.model.mkt !== null && g.model.mkt !== undefined ? Math.abs(g.model.p_home - g.model.mkt) : -1;
   const dis = G.games.filter(g => gap(g) >= 0.08).sort((x, y) => gap(y) - gap(x)).slice(0, 3);
-  const proj = G.projected ? `<p class="proj-note">PROJECTED: built from data through week ${G.through_week}. Model numbers use today's ratings and starters with no injury report; most lines are not posted yet. Updates every Thursday, Saturday and Sunday.</p>` : "";
+  const proj = G.backfill ? `<p class="proj-note">BACKFILLED: built after the season started, using only data from before week ${G.week}. Lines are closing lines. Recaps show how each game went. These picks are not counted in the published track record.</p>` : G.projected ? `<p class="proj-note">PROJECTED: built from data through week ${G.through_week}. Model numbers use today's ratings and starters with no injury report; most lines are not posted yet. Updates every Thursday, Saturday and Sunday.</p>` : "";
   app.innerHTML = `<div class="board-head"><h1>${G.week === "PO" ? "Playoff" : "Week " + G.week} <span>${G.projected ? "projections" : "matchups"}</span></h1>
     <label class="sortby">SORT <select aria-label="Sort games"><option value="leverage">Playoff leverage</option><option value="gap">Model vs. market gap</option><option value="ko">Kickoff time</option></select></label></div>
     ${dis.length ? `<section class="disagree"><h2>Where the model disagrees most</h2><div>${dis.map(g => {
@@ -647,7 +647,7 @@ function board() {
       ${g.final ? `<div class="line final">FINAL · ${g.away} ${g.final[g.away]} · ${g.home} ${g.final[g.home]}${g.model_ok === true ? '<span class="ok">MODEL ✓</span>' : g.model_ok === false ? '<span class="no">MODEL ✗</span>' : ""}</div>`
         : `<div class="line">${g.line ? esc(g.line.text) : "Line pending"}<span>${esc(imp)}</span></div>`}
       ${heatHTML(g.heat, g.away, g.home)}
-      ${g.model ? threeHTML(g.model, g.home, g.away) : ""}
+      ${g.model ? numsHTML(g.model, g.home, g.away) : ""}
       ${g.tease ? `<p class="tease">${esc(g.tease[0])}<span>${esc(g.tease[1])}</span></p>` : ""}
       <div class="lev" title="Playoff leverage"><i style="width:${(g.leverage / maxLev) * 100}%"></i></div>`;
     const pre = () => getGame(G.season, G.week, g.id).catch(() => {});
@@ -676,9 +676,9 @@ async function matchup(id, tab, focus) {
     ? `<span class="chip">${t} playoff odds ${Math.round(g.leverage.p_playoffs[t] * 100)}% · swing ${Math.round(Math.abs(g.leverage.by_team[t] || 0) * 100)} pts</span>` : "";
   app.innerHTML = `<section class="hero" style="--a:${a.accent};--h:${hm.accent}">
       <div class="side">${logoHTML(g.away)}<div><h2>${esc(a.nick)}</h2><small>${esc(a.name)}</small></div></div>
-      <div class="mid"><div class="k">${esc(g.kickoff)}${g.primetime ? " · PRIMETIME" : ""}${g.after_kickoff ? " · BUILT AFTER KICKOFF (PRE-WEEK DATA ONLY)" : ""}</div>
-        <div class="ln">${g.line ? esc(g.line.text) : "Line pending"}</div><div class="imp">${esc(imp)}${g.line && g.line_asof ? ` · line as of ${esc(g.line_asof.slice(5, 10).replace("-", "/"))}` : ""}</div>
-        ${g.model ? threeHTML({ p_home: g.model.p_home, mkt: g.model.market ? g.model.market.p_home : null, fpi: g.fpi ?? null }, g.home, g.away) : ""}
+      <div class="mid"><div class="k">${esc(g.kickoff)}${g.primetime ? " · PRIMETIME" : ""}${g.backfill ? " · BACKFILLED (PRE-WEEK DATA ONLY)" : g.after_kickoff ? " · BUILT AFTER KICKOFF (PRE-WEEK DATA ONLY)" : ""}</div>
+        <div class="ln">${g.line ? esc(g.line.text) : "Line pending"}</div><div class="imp">${esc(imp)}${g.backfill && g.line ? " · closing line" : g.line && g.line_asof ? ` · line as of ${esc(g.line_asof.slice(5, 10).replace("-", "/"))}` : ""}</div>
+        ${g.model ? numsHTML({ p_home: g.model.p_home, mkt: g.model.market ? g.model.market.p_home : null }, g.home, g.away) : ""}
         <div class="stakes">${stake(g.away)}${stake(g.home)}</div>${g.mode && g.mode !== "live" ? "" : '<button type="button" class="share-btn">COPY SHARE LINK</button>'}</div>
       <div class="side home">${logoHTML(g.home)}<div><h2>${esc(hm.nick)}</h2><small>${esc(hm.name)}</small></div></div>
     </section>
@@ -743,26 +743,19 @@ function statTile(label, m, k, note) {
     <div><em>MARKET</em><b class="${better ? "" : "up"}">${k.brier.toFixed(3)}</b><small>${Math.round(k.acc * 100)}% picks right</small></div></div>
     <small>Brier score, lower is better · ${m.n} games · ${esc(note)}</small></div>`;
 }
-function threeTile(t) {
-  if (!t || !t.model) return `<div class="stat"><span>Model vs. market vs. ESPN FPI</span><b>No graded games yet</b><small>FPI is saved for each game before kickoff starting this season, then graded here.</small></div>`;
-  const best = Math.min(t.model.brier, t.market.brier, t.fpi.brier), cell = (lab, m) => `<div><em>${lab}</em><b class="${m.brier === best ? "up" : ""}">${m.brier.toFixed(3)}</b><small>${Math.round(m.acc * 100)}% picks right</small></div>`;
-  return `<div class="stat"><span>Model vs. market vs. ESPN FPI</span><div class="vs three">${cell("MODEL", t.model)}${cell("MARKET", t.market)}${cell("FPI", t.fpi)}</div><small>Brier score, lower is better · ${t.model.n} games with all three numbers</small></div>`;
-}
 async function recordView() {
   showLoading("Loading track record");
   const r = await getSeason("record"), app = $("#app");
   app.innerHTML = `<div class="board-head"><h1>Model <span>track record</span></h1></div>
     <p class="board-note">Our win probabilities vs. the betting market, graded after every game. <a href="methods.html#record">How it is graded</a></p>
     <section class="stats">${statTile("Published picks, " + r.season, r.published.model, r.published.market, "the last version on this site before kickoff")}
-    ${statTile("Season walk-forward, " + r.season, r.walk.model, r.walk.market, "every game, each week fit only on earlier games")}
-    ${threeTile(r.three)}</section>
+    ${statTile("Season walk-forward, " + r.season, r.walk.model, r.walk.market, "every game, each week fit only on earlier games")}</section>
     <div class="cards rec-cards"></div>
-    <section class="log"><h2>Published picks</h2>${r.published.games.length ? `<div class="tbl-wrap"><table class="tbl"><thead><tr><th>WK</th><th>GAME</th><th>MODEL</th><th>MARKET</th><th>FPI</th><th>FINAL</th></tr></thead><tbody>
+    <section class="log"><h2>Published picks</h2>${r.published.games.length ? `<div class="tbl-wrap"><table class="tbl"><thead><tr><th>WK</th><th>GAME</th><th>MODEL</th><th>MARKET</th><th>FINAL</th></tr></thead><tbody>
     ${r.published.games.map(x => { const ph = x.p, pk = x.pm, mt = ph >= 0.5 ? x.home : x.away, kt = pk === null ? null : pk >= 0.5 ? x.home : x.away, win = x.y ? x.home : x.away;
       return `<tr><td>${x.week}</td><td><a href="#/${r.season}/${x.week}/${x.id}">${x.away} at ${x.home}</a></td>
       <td class="${mt === win ? "ok" : "no"}">${mt} ${pctS(Math.max(ph, 1 - ph))} ${mt === win ? "✓" : "✗"}</td>
       <td class="${kt === win ? "ok" : "no"}">${kt ? `${kt} ${pctS(Math.max(pk, 1 - pk))} ${kt === win ? "✓" : "✗"}` : "–"}</td>
-      ${x.pf === null || x.pf === undefined ? "<td>\u2013</td>" : (() => { const ft = x.pf >= 0.5 ? x.home : x.away; return `<td class="${ft === win ? "ok" : "no"}">${ft} ${pctS(Math.max(x.pf, 1 - x.pf))} ${ft === win ? "✓" : "✗"}</td>`; })()}
       <td>${x.away} ${x.final[x.away]} · ${x.home} ${x.final[x.home]}</td></tr>`; }).join("")}</tbody></table></div>` : '<p class="empty">Picks are graded the week after they are published.</p>'}</section>`;
   const box = $(".rec-cards", app);
   if (r.walk.cum.length) box.appendChild(chartBox("Season to date: model vs. market", "Brier score of every game this season, walk-forward", cumline({ cum: r.walk.cum }),
@@ -781,16 +774,20 @@ async function bracketView() {
   const B = await getSeason("bracket"), app = $("#app");
   const sl = (gm, t) => gm.seeds && gm.seeds[t] ? `<i>${gm.seeds[t]}</i>` : "<i></i>";
   const pr = (gm, t) => gm.final ? `<em>${gm.final[t]}</em>` : gm.p_home === null || gm.p_home === undefined ? "<em>\u2013</em>" : `<em>${Math.round((t === gm.home ? gm.p_home : 1 - gm.p_home) * 100)}%</em>`;
-  const box = gm => `<a class="bg ${gm.actual ? "real" : ""}" href="#/${B.season}/PO/${gm.id}">${[gm.away, gm.home].map(t => `<span class="${gm.winner === t ? "w" : "l"}">${sl(gm, t)}${logoHTML(t)}<b>${esc(T(t).nick)}</b>${pr(gm, t)}</span>`).join("")}</a>`;
+  const box = gm => `<a class="bg ${gm.actual ? "real" : ""}" href="#/${B.season}/PO/${gm.id}">${[gm.away, gm.home].map(t => `<span class="${gm.winner === t ? "w" : "l"}">${sl(gm, t)}${logoHTML(t)}<b><span class="nk">${esc(T(t).nick)}</span><span class="ab">${t}</span></b>${pr(gm, t)}</span>`).join("")}</a>`;
   const col = (code, conf) => { const r = B.rounds.find(x => x.code === code); return r ? r.games.filter(gm => gm.conf === conf).map(box).join("") : ""; };
-  const conf = c => `<section class="bconf"><h2>${c}</h2><div class="bcols">
-      <div class="bcol"><h3>WILD CARD</h3><div class="bgames"><div class="bye">${(() => { const s1 = (B.seeds[c] || [])[0]; return s1 ? `<span><i>1</i>${logoHTML(s1.team)}<b>${esc(T(s1.team).nick)}</b><em>BYE</em></span>` : ""; })()}</div>${col("WC", c)}</div></div>
-      <div class="bcol"><h3>DIVISIONAL</h3><div class="bgames">${col("DIV", c)}</div></div><div class="bcol"><h3>CONFERENCE</h3><div class="bgames">${col("CON", c)}</div></div></div></section>`;
+  const bye = c => { const s1 = (B.seeds[c] || [])[0]; return s1 ? `<div class="bye"><span><i>1</i>${logoHTML(s1.team)}<b>${esc(T(s1.team).nick)}</b><em>BYE</em></span></div>` : ""; };
+  const rcol = (code, c, label, side) => `<div class="bcol ${side} r-${code}"><h3><b>${c}</b> ${label}</h3><div class="bgames">${code === "WC" ? bye(c) : ""}${col(code, c)}</div></div>`;
   const sb = B.rounds.find(x => x.code === "SB");
+  const confs = ["AFC", "NFC"].filter(c => B.seeds[c]);
+  const cols = [];
+  if (confs[0]) cols.push(rcol("WC", confs[0], "WILD CARD", "L"), rcol("DIV", confs[0], "DIVISIONAL", "L"), rcol("CON", confs[0], "CONFERENCE", "L"));
+  cols.push(`<div class="bcol sb"><h3><b>SUPER BOWL</b></h3><div class="bgames">${sb ? sb.games.map(box).join("") : '<p class="empty">Not set yet</p>'}
+    ${B.champion ? `<p class="champ">${logoHTML(B.champion)}<b>${esc(T(B.champion).nick)}</b><small>${B.status === "final" ? "CHAMPION" : "MODEL FAVORITE"}</small></p>` : ""}</div></div>`);
+  if (confs[1]) cols.push(rcol("CON", confs[1], "CONFERENCE", "R"), rcol("DIV", confs[1], "DIVISIONAL", "R"), rcol("WC", confs[1], "WILD CARD", "R"));
   app.innerHTML = `<div class="board-head"><h1>Playoff <span>${B.status === "final" ? "bracket" : "picture"}</span></h1></div>
     <p class="board-note">${B.status === "final" ? "Regular season is over. Real matchups and results are shown; rounds not yet set are filled with the model favorite." : `If the season ended today: seeds from current standings (through week ${B.through_week}), every later round filled by the model favorite. Tiebreakers are approximate.`} Click any matchup for its full cards. <a href="methods.html#bracket">How it works</a></p>
-    <div class="bracket">${["AFC", "NFC"].filter(c => B.seeds[c]).map(conf).join("")}
-    ${sb ? `<section class="bsb"><h2>SUPER BOWL</h2>${sb.games.map(box).join("")}${B.champion ? `<p class="champ">${logoHTML(B.champion)}<b>${esc(T(B.champion).name)}</b><small>${B.status === "final" ? "" : "model favorite"}</small></p>` : ""}</section>` : ""}</div>
+    <div class="bracket">${cols.join("")}</div>
     <section class="log"><h2>Seeds</h2><div class="tbl-wrap"><table class="tbl"><thead><tr><th>SEED</th><th>AFC</th><th>W-L</th><th>NFC</th><th>W-L</th></tr></thead><tbody>
     ${[0, 1, 2, 3, 4, 5, 6].map(i => `<tr><td>${i + 1}</td>${["AFC", "NFC"].map(c => { const s = (B.seeds[c] || [])[i]; return s ? `<td class="tm"><a href="#/team/${s.team}">${logoHTML(s.team)}<b>${esc(T(s.team).nick)}</b></a></td><td>${s.w}-${s.l}${s.t ? "-" + s.t : ""}</td>` : "<td></td><td></td>"; }).join("")}</tr>`).join("")}
     </tbody></table></div></section>`;

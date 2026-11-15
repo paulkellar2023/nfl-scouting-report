@@ -400,7 +400,7 @@ class Cards:
 
 def select(cards, lo, hi, cap=10):
     """Default picks first (max 3 QB cards), then the rest by score. Returns (cards, default count)."""
-    cards = sorted([c for c in cards if c], key=lambda c: -c["score"])
+    cards = sorted([c for c in cards if c and c.get("score") is not None], key=lambda c: -c["score"])
     top, qb = [], 0
     for c in cards:
         is_qb = c["id"].startswith("qb_")

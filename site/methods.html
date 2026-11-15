@@ -30,7 +30,7 @@
   </nav>
 
   <section id="data"><h2>Data</h2>
-    <p>Play-by-play, schedules and betting lines, rosters, injury reports, snap counts and FTN charting (play action, motion, blitzers, pass rushers, interception-worthy throws), all from <a href="https://github.com/nflverse">nflverse</a> through the <code>nflreadpy</code> package. Also from nflverse: NFL Next Gen Stats (time to throw, tight-window throws, rush yards over expected, separation and cushion, stacked boxes) and Pro Football Reference charting (pressures, broken and missed tackles). ESPN FPI game win probabilities come from ESPN's public game pages and are shown as "–" when unavailable. The site rebuilds Thursday morning (full report and the Thursday line), then Saturday and Sunday morning (newer injury statuses for the model). Once a game kicks off, its report is frozen.</p>
+    <p>Play-by-play, schedules and betting lines, rosters, injury reports, snap counts and FTN charting (play action, motion, blitzers, pass rushers, interception-worthy throws), all from <a href="https://github.com/nflverse">nflverse</a> through the <code>nflreadpy</code> package. Also from nflverse: NFL Next Gen Stats (time to throw, tight-window throws, rush yards over expected, separation and cushion, stacked boxes) and Pro Football Reference charting (pressures, broken and missed tackles). The site rebuilds Thursday morning (full report and the Thursday line), then Saturday and Sunday morning (newer injury statuses for the model). Once a game kicks off, its report is frozen.</p>
   </section>
 
   <section id="cleaning"><h2>Cleaning</h2>
@@ -84,8 +84,8 @@
     <p>About 270 games per season is a small sample. A Brier gap smaller than about 0.01 is mostly noise.</p>
   </section>
 
-  <section id="fpi"><h2>Three numbers: model, market, ESPN FPI</h2>
-    <p>Each game shows our model, the market (vig-free moneyline, else the spread) and ESPN's FPI matchup predictor. The FPI number is saved at our last build before kickoff and graded on the track record page next to the other two. Tiles show the favorite and its win chance; exactly 50% shows "EVEN".</p>
+  <section id="backfill"><h2>Backfilled weeks</h2>
+    <p>Weeks built after the season started (marked "backfilled") use only data from before that week, the same as a live build, but the line is the closing line and the injury report is the final one for that week. They get recaps like any other week but are left out of the published track record, which only counts picks shown on the site before kickoff. They are already part of the season walk-forward record.</p>
   </section>
 
   <section id="nextgen"><h2>Next Gen Stats and PFR cards</h2>

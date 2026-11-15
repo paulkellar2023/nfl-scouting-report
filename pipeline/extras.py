@@ -142,17 +142,15 @@ def box_card(X, a, b, M, game):
     na, nb = int(o["value_s"].notna().sum()), int(d["value_s"].notna().sum())
     ra, rb = S.rank(o, a, 1), S.rank(d, b, 1)
     pc = lambda v: f"{round(v * 100)}%"
-    if e >= 0:
-        owner = b
-        l1 = (f"{poss(B)} defense puts 8+ in the box on {pc(vb)} of runs, {ordinal(rb)}-most." if rb > 1 else
-              f"{poss(B)} defense stacks the box more than anyone ({pc(vb)} of runs).")
-        l2 = (f"{poss(A)} runs already face 8+ defenders {pc(va)} of the time." if ra <= na // 2 else
-              f"{poss(A)} runs usually face lighter boxes ({pc(va)} with 8+).")
-    else:
-        owner = a
-        l1 = f"{poss(A)} runs face 8+ defenders just {pc(va)} of the time, {ordinal(na + 1 - ra)}-fewest."
-        l2 = (f"{poss(B)} defense stacks the box on {pc(vb)} of runs, {ordinal(nb + 1 - rb)}-fewest." if rb > nb // 2 else
-              f"{poss(B)} defense stacks the box on {pc(vb)} of runs.")
+    def rk(r, n):
+        if r == 1:
+            return "the most in the NFL"
+        if r == n:
+            return "the fewest in the NFL"
+        return f"{ordinal(r)}-most" if r <= (n + 1) / 2 else f"{ordinal(n + 1 - r)}-fewest"
+    off_txt = f"{poss(A)} runs face 8+ defenders {pc(va)} of the time, {rk(ra, na)}."
+    def_txt = f"{poss(B)} defense puts 8+ in the box on {pc(vb)} of runs, {rk(rb, nb)}."
+    owner, l1, l2 = (b, def_txt, off_txt) if e >= 0 else (a, off_txt, def_txt)
     pts = lambda tab: [{"team": t, "v": round(float(v), 4)} for t, v in tab["value_s"].dropna().items()]
     allv = [p["v"] for p in pts(o) + pts(d)]
     return {"id": f"box:{a}", "kind": "team", "phase": "box", "owner": owner, "score": round(abs(e) * 0.75, 3),

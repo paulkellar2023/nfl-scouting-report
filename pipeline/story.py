@@ -114,7 +114,7 @@ def _head_tend(c, M):
     A, B = M[a]["label"], M[b]["label"]
     ra, rb, na, nb, rf, nf = c["ra"], c["rb"], c["na"], c["nb"], c["rf"], c["nf"]
     sA, wA, sB, wB = ra <= 8, ra > na - 8, rb <= 8, rb > nb - 8
-    if 4 < rf <= nf - 4:
+    if rf is None or 4 < rf <= nf - 4:
         return _head_unit(c, M)
     if t.chooser == "off":
         if rf == 1:
@@ -368,7 +368,7 @@ def luck_card(lk, a, b, M, game):
 
 def select(cards, lo, hi, teams, cap=10):
     """Ranked list of up to `cap` cards plus `n`, the default count shown (lo..hi, soft score floor)."""
-    cards = sorted([c for c in cards if c], key=lambda c: -c["score"])
+    cards = sorted([c for c in cards if c and c.get("score") is not None], key=lambda c: -c["score"])
     out, per_phase, seen = [], {}, set()
     for c in cards:
         base = c["id"].split(":")[0]

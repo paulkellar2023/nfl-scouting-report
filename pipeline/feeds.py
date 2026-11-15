@@ -17,7 +17,7 @@ def _items(site):
             games = json.loads((wdir / "games.json").read_text())
         except (OSError, ValueError):
             continue
-        if games.get("synthetic") or games.get("projected") or not wdir.name[2:].isdigit():
+        if games.get("synthetic") or games.get("projected") or games.get("backfill") or not wdir.name[2:].isdigit():
             continue
         for g in games["games"]:
             try:
