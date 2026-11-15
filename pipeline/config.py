@@ -27,7 +27,7 @@ SOFT_SCORE_FLOOR = 1.0
 # Gap cards take the max over 7 gaps; subtract this so they compete fairly with single-stat cards.
 GAP_MAX_PENALTY = 1.0
 
-SITE_TITLE = "Scouting Report"
+SITE_TITLE = "The Drill Down"
 HANDLE = ""
 LLM_MODEL = "claude-haiku-5-5"
 BG_HEX = "#0B0B0C"

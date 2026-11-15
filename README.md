@@ -1,4 +1,4 @@
-# Scouting Report
+# The Drill Down
 
 Weekly NFL matchup previews on GitHub Pages. A Python pipeline reads open nflverse data, finds the largest unit-vs-unit edges in each game, and writes JSON. A static site shows a Week Board (games ordered by playoff leverage) and a dashboard for each matchup: 3 keys to success per team, 4 to 6 team cards, 4 to 6 player cards, and a 2-sentence LLM summary.
 
