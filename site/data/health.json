@@ -1,7 +1,9 @@
 {
- "status": "ok",
- "checked": "2026-11-15T20:43Z",
- "warnings": [],
+ "status": "warn",
+ "checked": "2026-11-15T20:59Z",
+ "warnings": [
+  "LLM summary fell back to rule-based for 1 games (search the log for 'summary:')"
+ ],
  "errors": [],
  "info": {
   "week": 10,
@@ -17,12 +19,17 @@
    "part": false,
    "ftn": true
   },
+  "recaps": {
+   "graded": 0,
+   "published": 0,
+   "walk": 135
+  },
   "games": 14,
   "summaries": {
    "llm": 0,
-   "rule": 0,
+   "rule": 1,
    "kept": 9,
-   "cached": 5
+   "cached": 4
   },
   "model": {
    "ran": true,
