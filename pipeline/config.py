@@ -34,3 +34,10 @@ BG_HEX = "#0B0B0C"
 
 # Win-probability model: first season with features (needs the prior season's plays for week 1 priors).
 MODEL_FIRST_SEASON = 2016
+
+# Public site URL (feeds and email links).
+SITE_URL = "https://paulkellar2023.github.io/nfl-scouting-report/"
+# Buttondown: your username (public, used by the signup form). Empty = email signup hidden.
+BUTTONDOWN_USERNAME = "thedrilldown"
+# "draft" = the weekly run creates drafts in Buttondown for you to review. "send" = sends right away.
+EMAIL_MODE = "draft"

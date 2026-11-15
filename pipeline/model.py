@@ -20,7 +20,7 @@ LABELS = {"pass_edge": "Passing matchup", "rush_edge": "Rushing matchup", "qb_di
 PRIOR_SEASON_W = 0.35       # weight on last season's plays (decays further by week)
 QB_PRIOR, QB_K = -0.05, 150  # QB EPA/dropback shrinks toward replacement level with k pseudo-dropbacks
 STATUS_W = {"Out": 1.0, "Doubtful": 0.85, "Questionable": 0.25}
-ALPHAS = [1, 3, 10, 30, 100, 300]
+ALPHAS = [0.1, 0.3, 1, 3, 10, 30, 100, 300]
 CACHE = Path("model/cache")
 
 

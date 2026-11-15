@@ -30,7 +30,7 @@ def _nums(s):
     return {n.lstrip("+-").rstrip("0").rstrip(".") or "0" for n in _NUM.findall(s)}
 
 
-VERSION = "5"  # bump to regenerate cached summaries after a prompt or fallback change
+VERSION = "6"  # bump to regenerate cached summaries after a prompt or fallback change
 
 
 def facts_hash(facts):
@@ -101,7 +101,7 @@ def summarize(facts):
         client = anthropic.Anthropic(api_key=key)
         allowed = _nums(json.dumps(facts))
         for attempt in range(2):
-            msg = client.messages.create(model=LLM_MODEL, max_tokens=220, temperature=0, system=SYSTEM,
+            msg = client.messages.create(model=LLM_MODEL, max_tokens=300, system=SYSTEM,
                                          messages=[{"role": "user", "content": json.dumps(facts)}])
             text = "".join(b.text for b in msg.content if b.type == "text").strip().replace("—", ",")
             bad = _nums(text) - allowed

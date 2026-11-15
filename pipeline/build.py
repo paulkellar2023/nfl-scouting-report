@@ -9,9 +9,9 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-from . import assets, clean, context, leverage, model, model_cards, stats, story, summary, templates_player, templates_team
+from . import assets, clean, context, feeds, leverage, model, model_cards, notify, stats, story, summary, templates_player, templates_team
 from .text import agree
-from .config import MODEL_FIRST_SEASON
+from .config import BUTTONDOWN_USERNAME, MODEL_FIRST_SEASON, SITE_URL
 from .config import (HANDLE, MAX_PLAYER_CARDS, MAX_TEAM_CARDS, MIN_PLAYER_CARDS, MIN_TEAM_CARDS,
                      PRIMETIME_BONUS, SEASON, SITE_TITLE)
 
@@ -86,6 +86,7 @@ def main():
     ap.add_argument("--synthetic", action="store_true")
     ap.add_argument("--site", default="site")
     ap.add_argument("--no-llm", action="store_true")
+    ap.add_argument("--refresh-started", action="store_true", help="rebuild games that already kicked off (testing)")
     args = ap.parse_args()
     logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s: %(message)s")
 
@@ -161,7 +162,7 @@ def main():
     for _, g in games.iterrows():
         a_, h_ = g.away_team, g.home_team
         started = kicked_off(g, now)
-        if started and g.game_id in prev_doc and g.game_id in prev_tile:
+        if started and not args.refresh_started and g.game_id in prev_doc and g.game_id in prev_tile:
             _write(wdir / f"{g.game_id}.json", prev_doc[g.game_id])
             board.append(prev_tile[g.game_id])
             log.info("kept pre-kickoff report for %s", g.game_id)
@@ -267,10 +268,13 @@ def main():
     weeks.append({"season": args.season, "week": week, "built": built, "synthetic": bool(raw.get("synthetic")),
                   "games": len(board)})
     weeks.sort(key=lambda w: (w["season"], w["week"]))
-    _write(idx_path, {"title": SITE_TITLE, "handle": HANDLE, "weeks": weeks,
+    _write(idx_path, {"title": SITE_TITLE, "handle": HANDLE, "weeks": weeks, "site_url": SITE_URL,
+                      "buttondown": BUTTONDOWN_USERNAME or None,
                       "latest": {"season": weeks[-1]["season"], "week": weeks[-1]["week"]}})
+    log.info("feeds: %d items", feeds.build(site, M))
     if not raw.get("synthetic"):
         assets.download(site, M, pctx["heads"], pctx["need_heads"])
+        notify.send_week(wdir, M, [b["id"] for b in board], week)
     log.info("wrote %d games to %s", len(board), wdir)
 
 

@@ -615,6 +615,24 @@ async function route() {
   window.scrollTo(0, 0);
   if (id) await matchup(id, params.get("tab"), params.get("card")); else board();
 }
+function setupFollow() {
+  const dlg = $("#follow"), sel = $("#follow-team"), base = S.idx.site_url || location.href.split("#")[0];
+  const teams = Object.values(S.teams).sort((a, b) => a.name.localeCompare(b.name));
+  sel.innerHTML = `<option value="ALL">All games (weekly digest)</option>` + teams.map(t => `<option value="${t.abbr}">${esc(t.name)}</option>`).join("");
+  const sync = () => {
+    $("#feed-url").value = `${base}feeds/${sel.value === "ALL" ? "all" : sel.value}.xml`;
+    $("#email-tag").value = sel.value;
+    try { localStorage.setItem("follow", sel.value); } catch (e) { /* storage blocked */ }
+  };
+  try { const v = localStorage.getItem("follow"); if (v) sel.value = v; } catch (e) { /* storage blocked */ }
+  if (S.idx.buttondown) {
+    $("#email-box").hidden = false;
+    $("#email-form").action = `https://buttondown.com/api/emails/embed-subscribe/${encodeURIComponent(S.idx.buttondown)}`;
+  }
+  sel.onchange = sync; sync();
+  $("#feed-copy").onclick = e => { navigator.clipboard?.writeText($("#feed-url").value); e.target.textContent = "COPIED"; setTimeout(() => (e.target.textContent = "COPY"), 1200); };
+  $("#follow-btn").onclick = () => dlg.showModal();
+}
 async function init() {
   S.idx = await getJSON("data/index.json");
   S.teams = await getJSON("data/teams.json");
@@ -623,6 +641,7 @@ async function init() {
   ws.innerHTML = [...S.idx.weeks].reverse().map(w => `<option value="${w.season}/${w.week}">Week ${w.week}, ${w.season}${w.synthetic ? " (test)" : ""}</option>`).join("");
   ws.onchange = () => { location.hash = `#/${ws.value}`; };
   $("#game-select").onchange = e => { const [s, w] = ws.value.split("/"); location.hash = `#/${s}/${w}${e.target.value ? "/" + e.target.value : ""}`; };
+  setupFollow();
   window.addEventListener("hashchange", route);
   route();
 }
