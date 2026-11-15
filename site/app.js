@@ -551,7 +551,7 @@ async function matchup(id, tab, focus) {
     ? `<span class="chip">${t} playoff odds ${Math.round(g.leverage.p_playoffs[t] * 100)}% · swing ${Math.round(Math.abs(g.leverage.by_team[t] || 0) * 100)} pts</span>` : "";
   app.innerHTML = `<section class="hero" style="--a:${a.accent};--h:${hm.accent}">
       <div class="side">${logoHTML(g.away)}<div><h2>${esc(a.nick)}</h2><small>${esc(a.name)}</small></div></div>
-      <div class="mid"><div class="k">${esc(g.kickoff)}${g.primetime ? " · PRIMETIME" : ""}</div>
+      <div class="mid"><div class="k">${esc(g.kickoff)}${g.primetime ? " · PRIMETIME" : ""}${g.after_kickoff ? " · BUILT AFTER KICKOFF (PRE-WEEK DATA ONLY)" : ""}</div>
         <div class="ln">${g.line ? esc(g.line.text) : "Line pending"}</div><div class="imp">${esc(imp)}${g.line_asof ? ` · line as of ${esc(g.line_asof.slice(5, 10).replace("-", "/"))}` : ""}</div>
         <div class="stakes">${stake(g.away)}${stake(g.home)}</div></div>
       <div class="side home">${logoHTML(g.home)}<div><h2>${esc(hm.nick)}</h2><small>${esc(hm.name)}</small></div></div>

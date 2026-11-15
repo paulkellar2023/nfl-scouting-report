@@ -67,6 +67,18 @@ def kickoff(g):
     return f"{day} {date} · {tm} ET"
 
 
+def kicked_off(g, now):
+    """True if the game's ET kickoff time has passed (or a result exists)."""
+    if pd.notna(g.get("result")):
+        return True
+    try:
+        from zoneinfo import ZoneInfo
+        ko = dt.datetime.strptime(f"{g.gameday} {g.gametime}", "%Y-%m-%d %H:%M").replace(tzinfo=ZoneInfo("America/New_York"))
+        return now >= ko
+    except (ValueError, TypeError):
+        return False
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--season", type=int, default=SEASON)
@@ -127,21 +139,33 @@ def main():
 
     site = Path(args.site)
     wdir = site / "data" / str(args.season) / f"wk{week:02d}"
-    prev_line = {}
+    prev_line, prev_doc, prev_tile = {}, {}, {}
     if wdir.exists():
         for f in wdir.glob(f"{args.season}_*.json"):
             try:
                 dd = json.loads(f.read_text())
+                prev_doc[dd["id"]] = dd
                 if dd.get("line"):
                     prev_line[dd["id"]] = (dd["line"], dd.get("line_asof", dd.get("built")))
             except (ValueError, KeyError):
                 pass
+        try:
+            prev_tile = {t["id"]: t for t in json.loads((wdir / "games.json").read_text())["games"]}
+        except (OSError, ValueError, KeyError):
+            pass
         shutil.rmtree(wdir)
+    now = dt.datetime.now(dt.timezone.utc)
     built = dt.datetime.now(dt.timezone.utc).strftime("%Y-%m-%dT%H:%MZ")
     span = f"Weeks 1-{week - 1}, {args.season}" if week > 2 else f"Week 1, {args.season}"
     board = []
     for _, g in games.iterrows():
         a_, h_ = g.away_team, g.home_team
+        started = kicked_off(g, now)
+        if started and g.game_id in prev_doc and g.game_id in prev_tile:
+            _write(wdir / f"{g.game_id}.json", prev_doc[g.game_id])
+            board.append(prev_tile[g.game_id])
+            log.info("kept pre-kickoff report for %s", g.game_id)
+            continue
         game = {"span": span}
         cands = []
         for t in tpls:
@@ -189,7 +213,7 @@ def main():
         doc = {"id": g.game_id, "season": args.season, "week": week, "away": a_, "home": h_, "kicker": kicker,
                "kickoff": kickoff(g), "primetime": prime, "line": ln, "leverage": lv, "summary": summ,
                "keys": keys, "heat": heat, "team_cards": team_cards, "player_cards": player_cards,
-               "team_n": team_n, "player_n": player_n, "built": built, "line_asof": ln_asof, "line_now": ln_now,
+               "team_n": team_n, "player_n": player_n, "built": built, "after_kickoff": started, "line_asof": ln_asof, "line_now": ln_now,
                "model": ({"p_home": mp["p_home"], "margin": mp["margin"], "market": mp["market"],
                           "summary": agree(model_cards.summary(mp, M), plurals)} if mp else None),
                "model_cards": mcards}

@@ -21,7 +21,7 @@ def simulate(sched, meta, target_week, rate, seed=7):
     div = {t: meta[t]["division"] for t in teams}
     wins = np.zeros((N_SIMS, len(teams)))
     dwins = np.zeros_like(wins)
-    played = reg[reg["result"].notna()]
+    played = reg[reg["result"].notna() & (reg["week"] < target_week)]
     for _, g in played.iterrows():
         h, a = ix[g.home_team], ix[g.away_team]
         hw = 1.0 if g.result > 0 else (0.5 if g.result == 0 else 0.0)
@@ -30,7 +30,7 @@ def simulate(sched, meta, target_week, rate, seed=7):
         if div[g.home_team] == div[g.away_team]:
             dwins[:, h] += hw
             dwins[:, a] += 1 - hw
-    rem = reg[reg["result"].isna()].reset_index(drop=True)
+    rem = reg[reg["result"].isna() | (reg["week"] >= target_week)].reset_index(drop=True)
     if not len(rem):
         return {}
     mu = []
