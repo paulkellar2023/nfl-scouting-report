@@ -1,9 +1,7 @@
 {
- "status": "warn",
- "checked": "2026-11-15T21:26Z",
- "warnings": [
-  "LLM summary fell back to rule-based for 2 games (search the log for 'summary:')"
- ],
+ "status": "ok",
+ "checked": "2026-11-15T23:16Z",
+ "warnings": [],
  "errors": [],
  "info": {
   "week": 10,
@@ -32,12 +30,8 @@
    "wr_cush",
    "wr_sep"
   ],
-  "fpi": {
-   "found": 2,
-   "games": 2
-  },
   "recaps": {
-   "graded": 0,
+   "graded": 104,
    "published": 0,
    "walk": 135
   },
@@ -50,9 +44,9 @@
   "projected_games": 122,
   "summaries": {
    "llm": 0,
-   "rule": 2,
+   "rule": 0,
    "kept": 12,
-   "cached": 0
+   "cached": 2
   },
   "model": {
    "ran": true,
