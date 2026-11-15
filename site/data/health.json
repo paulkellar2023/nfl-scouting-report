@@ -1,0 +1,35 @@
+{
+ "status": "ok",
+ "checked": "2026-11-15T20:43Z",
+ "warnings": [],
+ "errors": [],
+ "info": {
+  "week": 10,
+  "plays": 16671,
+  "flags": {
+   "ftn": true,
+   "pressure": "proxy",
+   "coverage": false,
+   "int_worthy": true
+  },
+  "sources": {
+   "rosters": true,
+   "part": false,
+   "ftn": true
+  },
+  "games": 14,
+  "summaries": {
+   "llm": 0,
+   "rule": 0,
+   "kept": 9,
+   "cached": 5
+  },
+  "model": {
+   "ran": true,
+   "alpha": 0.1,
+   "sigma": 12.0,
+   "hfa": 1.66,
+   "n_train": 2697
+  }
+ }
+}
