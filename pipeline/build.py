@@ -218,7 +218,19 @@ def main():
                  "market_win_pct": {h_: round(100 * mkt_p), a_: round(100 * (1 - mkt_p))} if mkt_p is not None else None,
                  "keys": {t: [{"phrase": k["phrase"], "detail": k["detail"], "favorable": k["favorable"]} for k in keys[t]] for t in keys},
                  "storylines": [{"team": labels.get(c["owner"], c["owner"]), "text": f"{c['t1']} {c['t2']}"}
-                                for c in team_cards[:4] + player_cards[:2]]}
+                                for c in team_cards[:4]],
+                 "players": [{"team": labels.get(c["owner"], c["owner"]), "headline": c["t1"], "detail": c["t2"]}
+                             for c in ([next(c for c in player_cards if c["owner"] == t) for t in (a_, h_)
+                                        if any(c["owner"] == t for c in player_cards)]
+                                       or player_cards[:2])],
+                 "model": None}
+        if mp:
+            fav = h_ if mp["p_home"] >= 0.5 else a_
+            sgn = 1 if fav == h_ else -1
+            tops = sorted([c for c in mp["contribs"] if sgn * c["pts"] > 0.2], key=lambda c: -sgn * c["pts"])[:2]
+            facts["model"] = {"favorite": labels[fav], "win_pct": round(100 * max(mp["p_home"], 1 - mp["p_home"])),
+                              "top_factors": [{"label": c["label"], "points": round(abs(c["pts"]), 1), "toward": labels[fav]}
+                                              for c in tops]}
         fh = summary.facts_hash(facts)
         prev = prev_doc.get(g.game_id, {})
         if prev.get("summary_hash") == fh and prev.get("summary"):

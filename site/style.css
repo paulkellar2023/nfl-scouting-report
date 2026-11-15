@@ -6,7 +6,7 @@
   --ink: #F3F3F1;
   --mute: #9B9BA1;
   --dim: #6E6E75;
-  --brand: #F2B33D;
+  --brand: #FB4F14;
   --sans: "Nunito Sans", "Avenir Next", "Segoe UI", sans-serif;
   --num: "Barlow Condensed", "DIN Condensed", sans-serif;
   color-scheme: dark;
@@ -32,7 +32,7 @@ main { flex: 1; width: 100%; max-width: 1520px; margin: 0 auto; padding: 24px 16
   color: var(--ink); border: 1px solid var(--line); border-radius: 8px; padding: 8px 30px 8px 12px; font: 600 14px var(--sans); min-width: 120px; cursor: pointer; }
 .pickers .wide select { min-width: 260px; }
 .pickers select:focus-visible { outline: 2px solid var(--brand); outline-offset: 1px; }
-.banner { background: repeating-linear-gradient(-45deg, #2A2210, #2A2210 10px, #221B0C 10px, #221B0C 20px);
+.banner { background: repeating-linear-gradient(-45deg, #2A1408, #2A1408 10px, #1F0F06 10px, #1F0F06 20px);
   color: var(--brand); text-align: center; font-weight: 800; letter-spacing: .12em; font-size: 12px; padding: 8px; }
 
 /* board */
@@ -50,7 +50,7 @@ main { flex: 1; width: 100%; max-width: 1520px; margin: 0 auto; padding: 24px 16
 @keyframes fadeup { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
 .tile-meta { display: flex; justify-content: space-between; align-items: center; gap: 8px; font-size: 11px; font-weight: 800; letter-spacing: .1em; color: var(--dim); text-transform: uppercase; }
 .chip { border: 1px solid var(--line); border-radius: 99px; padding: 3px 8px; color: var(--mute); white-space: nowrap; }
-.chip.prime { color: var(--brand); border-color: #4A3A14; }
+.chip.prime { color: var(--brand); border-color: #5A2A10; }
 .teams { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 8px; }
 .team { display: flex; align-items: center; gap: 10px; min-width: 0; }
 .team > div { min-width: 0; }

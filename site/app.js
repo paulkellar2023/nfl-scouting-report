@@ -398,8 +398,8 @@ function dist(c) {
   el("line", { x1: X(c.mu), x2: X(c.mu), y1: Y(0), y2: Y(1.02), stroke: "#F4F4F2", "stroke-width": 3 }, svg);
   txt(svg, X(c.mu), Y(1.02) - 12, "MODEL", { "text-anchor": "middle", "font-size": 18, "font-weight": 900, fill: "#F4F4F2" });
   if (c.market !== null && c.market !== undefined) {
-    el("line", { x1: X(c.market), x2: X(c.market), y1: Y(0), y2: Y(0.86), stroke: "#F2B33D", "stroke-width": 3, "stroke-dasharray": "8 6" }, svg);
-    txt(svg, X(c.market), Y(0.86) - 12, "MARKET", { "text-anchor": "middle", "font-size": 18, "font-weight": 900, fill: "#F2B33D" });
+    el("line", { x1: X(c.market), x2: X(c.market), y1: Y(0), y2: Y(0.86), stroke: "#FB4F14", "stroke-width": 3, "stroke-dasharray": "8 6" }, svg);
+    txt(svg, X(c.market), Y(0.86) - 12, "MARKET", { "text-anchor": "middle", "font-size": 18, "font-weight": 900, fill: "#FB4F14" });
   }
   return svg;
 }
@@ -449,21 +449,21 @@ function calib(c) {
   }
   el("line", { x1: X(0), y1: Y(0), x2: X(1), y2: Y(1), stroke: "#BDBDBD", "stroke-width": 2, "stroke-dasharray": "10 8" }, svg);
   const mx = Math.max(1, ...c.pts.map(p => p.n));
-  for (const p of c.pts) el("circle", { cx: X(p.pred), cy: Y(p.obs), r: 7 + 14 * Math.sqrt(p.n / mx), fill: "#F2B33D", opacity: 0.85 }, svg);
+  for (const p of c.pts) el("circle", { cx: X(p.pred), cy: Y(p.obs), r: 7 + 14 * Math.sqrt(p.n / mx), fill: "#FB4F14", opacity: 0.85 }, svg);
   txt(svg, (box.l + box.r) / 2, box.b + 72, "MODEL WIN PROBABILITY", { "text-anchor": "middle", "font-size": 20, "font-weight": 900, fill: C.title });
   const g = el("g", { transform: `translate(40,${(box.t + box.b) / 2}) rotate(-90)` }, svg);
   txt(g, 0, 0, "ACTUAL WIN RATE", { "text-anchor": "middle", "font-size": 20, "font-weight": 900, fill: C.title });
   const sx = 640, sr = W - 30, bs = c.seasons, all = bs.flatMap(s => [s.model_brier, s.mkt_brier]);
   const lo = Math.min(...all) - 0.005, hi = Math.max(...all) + 0.005, BX = lin(lo, hi, sx + 70, sr), rh = Math.min(48, 420 / Math.max(1, bs.length));
   txt(svg, sx, 20, "BRIER BY SEASON", { "font-size": 18, "font-weight": 900, fill: C.title, "letter-spacing": ".06em" });
-  el("circle", { cx: sx + 8, cy: 46, r: 7, fill: "#F2B33D" }, svg); txt(svg, sx + 22, 52, "Model", { "font-size": 17, fill: C.sub });
+  el("circle", { cx: sx + 8, cy: 46, r: 7, fill: "#FB4F14" }, svg); txt(svg, sx + 22, 52, "Model", { "font-size": 17, fill: C.sub });
   el("circle", { cx: sx + 100, cy: 46, r: 7, fill: "none", stroke: "#F4F4F2", "stroke-width": 2.5 }, svg); txt(svg, sx + 114, 52, "Market", { "font-size": 17, fill: C.sub });
   bs.forEach((s, i) => {
     const y = 90 + i * rh;
     txt(svg, sx, y + 6, String(s.season), { "font-size": 18, "font-weight": 800, fill: C.tick });
     el("line", { x1: BX(s.model_brier), x2: BX(s.mkt_brier), y1: y, y2: y, stroke: "#4A4A50", "stroke-width": 3 }, svg);
     el("circle", { cx: BX(s.mkt_brier), cy: y, r: 7, fill: "#0B0B0C", stroke: "#F4F4F2", "stroke-width": 2.5 }, svg);
-    el("circle", { cx: BX(s.model_brier), cy: y, r: 7, fill: "#F2B33D" }, svg);
+    el("circle", { cx: BX(s.model_brier), cy: y, r: 7, fill: "#FB4F14" }, svg);
   });
   txt(svg, (sx + 70 + sr) / 2, 90 + bs.length * rh + 24, "← BETTER (LOWER)", { "text-anchor": "middle", "font-size": 15, "font-weight": 800, fill: "#6E6E75", "letter-spacing": ".08em" });
   return svg;
