@@ -71,7 +71,8 @@ def image(path, doc, M):
     a, h = M[doc["away"]], M[doc["home"]]
     im = Image.new("RGB", (1200, 630), BG)
     d = ImageDraw.Draw(im)
-    d.rectangle([0, 0, 600, 14], fill=_rgb(a.get("accent")))
+    from .context import pair
+    d.rectangle([0, 0, 600, 14], fill=_rgb(pair(a.get("accent"), a.get("alts"), h.get("accent"))))
     d.rectangle([600, 0, 1200, 14], fill=_rgb(h.get("accent")))
     d.text((60, 46), "THE DRILL ", font=_font("Bold", 44), fill=FG)
     d.text((60 + d.textlength("THE DRILL ", font=_font("Bold", 44)), 46), "DOWN", font=_font("Bold", 44), fill=BRAND)

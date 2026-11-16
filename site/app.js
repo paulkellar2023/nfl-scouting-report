@@ -63,7 +63,22 @@ function numsHTML(m, home, away) {
   return `<div class="mline"><div><span>MODEL</span><b>${favTxt(m.p_home, home, away)}</b></div><div><span>MARKET</span><b>${favTxt(m.mkt, home, away)}</b></div><div><span>ELO</span><b>${favTxt(m.elo, home, away)}</b></div></div>`;
 }
 const wkLabel = w => w.week === "PO" ? `Playoffs${w.projected ? " (projected)" : ""}` : `Week ${w.week}${w.projected ? " (projected)" : w.backfill ? " (backfilled)" : ""}`;
-const T = t => S.teams[t] || { accent: "#BBBBBB", color: "#444", label: t, nick: t, abbr: t };
+// Matchup colors: the home team keeps its accent; the away team switches to its first alternate color that is
+// clearly different, so two gold or two orange teams never share a color in the same game.
+function rgbDist(c1, c2) {
+  const p = c => [1, 3, 5].map(i => parseInt(c.slice(i, i + 2), 16)), [r1, g1, b1] = p(c1), [r2, g2, b2] = p(c2), rm = (r1 + r2) / 2;
+  return Math.sqrt((2 + rm / 256) * (r1 - r2) ** 2 + 4 * (g1 - g2) ** 2 + (2 + (255 - rm) / 256) * (b1 - b2) ** 2);
+}
+function pairColors(a, h) {
+  const A = S.teams[a], H = S.teams[h];
+  if (!A || !H) return null;
+  const pick = [A.accent, ...(A.alts || [])].find(c => rgbDist(c, H.accent) >= 120) || "#E8E8E8";
+  return { [a]: pick, [h]: H.accent };
+}
+const T = t => {
+  const m = S.teams[t] || { accent: "#BBBBBB", color: "#444", label: t, nick: t, abbr: t };
+  return S.pair && S.pair[t] ? { ...m, accent: S.pair[t] } : m;
+};
 async function getJSON(p) { const r = await fetch(p, { cache: "no-cache" }); if (!r.ok) throw new Error(p); return r.json(); }
 const gameCache = {};
 function getGame(season, week, id) {
@@ -663,6 +678,7 @@ function board() {
   else if (sortBy === "ko") order.sort((x, y) => (x.ko || "").localeCompare(y.ko || ""));
   const grid = $(".grid", app);
   order.forEach((g, i) => {
+    S.pair = pairColors(g.away, g.home);
     const a = T(g.away), hm = T(g.home), tile = h("a", { class: "tile", href: `#/${G.season}/${G.week}/${g.id}`,
       style: `--a:${a.accent};--h:${hm.accent};--acc:${T(g.tease_owner || g.home).accent};animation-delay:${i * 30}ms` });
     const imp = g.line && g.line.implied ? `${g.away} ${g.line.implied[g.away]} · ${g.home} ${g.line.implied[g.home]}` : "";
@@ -682,6 +698,7 @@ function board() {
     tile.addEventListener("focus", pre, { once: true });
     grid.appendChild(tile);
   });
+  S.pair = null;
 }
 function keyRes(rc, t, i) {
   const r = rc && rc.keys[t] && rc.keys[t][i];
@@ -700,6 +717,7 @@ async function matchup(id, tab, focus) {
   const G = S.games, app = $("#app");
   showLoading("Loading matchup");
   const g = await getGame(G.season, G.week, id);
+  S.pair = pairColors(g.away, g.home);
   const a = T(g.away), hm = T(g.home);
   const imp = g.line && g.line.implied ? `Implied: ${g.away} ${g.line.implied[g.away]} · ${g.home} ${g.line.implied[g.home]}` : "";
   const rc = g.recap;
@@ -905,6 +923,7 @@ async function route() {
   const [path, q] = location.hash.replace(/^#\/?/, "").split("?");
   const params = new URLSearchParams(q || location.search);
   const parts = path.split("/").filter(Boolean);
+  S.pair = null;
   const latest = S.idx.latest;
   if (["record", "teams", "team", "bracket"].includes(parts[0])) {
     try { await loadWeek(latest.season, latest.week); $("#week-select").value = `${latest.season}/${latest.week}`; } catch (e) { /* footer only */ }

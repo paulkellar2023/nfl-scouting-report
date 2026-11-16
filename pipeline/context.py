@@ -34,6 +34,37 @@ def accent(c1, c2):
     return _mix_white(best, t)
 
 
+def alts(*colors):
+    """Every team color made legible on the dark background, in team order, near-duplicates removed.
+    The front end picks one per matchup so the two teams never share a similar color."""
+    out = []
+    for c in colors:
+        if isinstance(c, str) and c.startswith("#") and len(c) == 7:
+            v = accent(c, None)
+            if all(_dist(v, o) > 40 for o in out):
+                out.append(v)
+    for n in ("#E8E8E8", "#9AA3AD"):
+        if all(_dist(n, o) > 40 for o in out):
+            out.append(n)
+    return out
+
+
+def _dist(c1, c2):
+    """Perceptual-ish RGB distance ("redmean")."""
+    r1, g1, b1 = (int(c1[i:i + 2], 16) for i in (1, 3, 5))
+    r2, g2, b2 = (int(c2[i:i + 2], 16) for i in (1, 3, 5))
+    rm = (r1 + r2) / 2
+    return ((2 + rm / 256) * (r1 - r2) ** 2 + 4 * (g1 - g2) ** 2 + (2 + (255 - rm) / 256) * (b1 - b2) ** 2) ** 0.5
+
+
+def pair(acc_a, alts_a, acc_h, min_dist=120):
+    """Home keeps its accent; the away team takes its first color far enough from it."""
+    for c in [acc_a] + list(alts_a or []):
+        if _dist(c, acc_h) >= min_dist:
+            return c
+    return "#E8E8E8"
+
+
 def possessive(name):
     return name + ("'" if name.endswith("s") else "'s")
 
@@ -49,6 +80,7 @@ def team_meta(teams_df, active):
         out[ab] = {"abbr": ab, "name": r["team_name"], "nick": r["team_nick"], "label": label, "plural": plural,
                    "conf": r.get("team_conf"), "division": r.get("team_division"),
                    "color": r.get("team_color"), "accent": accent(r.get("team_color"), r.get("team_color2")),
+                   "alts": alts(*(r.get(c) for c in ("team_color", "team_color2", "team_color3", "team_color4"))),
                    "logo_url": r.get("team_logo_espn") if isinstance(r.get("team_logo_espn"), str) else espn_logo(ab), "logo": f"assets/logos/{ab}.png"}
     return out
 
