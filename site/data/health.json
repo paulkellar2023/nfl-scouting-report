@@ -1,6 +1,6 @@
 {
  "status": "ok",
- "checked": "2026-11-16T01:16Z",
+ "checked": "2026-11-16T01:25Z",
  "warnings": [],
  "errors": [],
  "info": {
@@ -57,8 +57,8 @@
   "summaries": {
    "llm": 0,
    "rule": 0,
-   "kept": 12,
-   "cached": 2
+   "kept": 13,
+   "cached": 1
   },
   "luck": {
    "turnover_adjusted": true,
