@@ -1,6 +1,6 @@
 {
  "status": "ok",
- "checked": "2026-11-15T23:16Z",
+ "checked": "2026-11-16T00:22Z",
  "warnings": [],
  "errors": [],
  "info": {
@@ -31,7 +31,7 @@
    "wr_sep"
   ],
   "recaps": {
-   "graded": 104,
+   "graded": 0,
    "published": 0,
    "walk": 135
   },
