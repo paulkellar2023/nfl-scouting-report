@@ -385,14 +385,19 @@ function probbars(c) {
 }
 function waterfall(c) {
   const rows = [...c.items, { label: "PROJECTED MARGIN", pts: c.total, total: true }];
-  const h = 90 + rows.length * 66, svg = newSvg(h), l = 300, r = W - 90;
+  const GAP = 22, h = 90 + rows.length * 66 + GAP, svg = newSvg(h), l = 300, r = W - 90;
   let run = 0; const spans = rows.map(it => { if (it.total) return [0, it.pts]; const s0 = run; run += it.pts; return [s0, run]; });
   const ext = Math.max(2, ...spans.flat().map(Math.abs)) * 1.15, X = lin(-ext, ext, l, r);
   el("line", { x1: X(0), x2: X(0), y1: 40, y2: h - 20, stroke: "#55555B", "stroke-width": 2 }, svg);
   txt(svg, l, 30, "← " + T(c.away).nick.toUpperCase(), { "font-size": 18, "font-weight": 900, fill: T(c.away).accent, "letter-spacing": ".08em" });
   txt(svg, r, 30, T(c.home).nick.toUpperCase() + " →", { "text-anchor": "end", "font-size": 18, "font-weight": 900, fill: T(c.home).accent, "letter-spacing": ".08em" });
   rows.forEach((it, i) => {
-    const y = 60 + i * 66, [a, b] = spans[i], col = (it.total ? it.pts : it.pts) >= 0 ? T(c.home).accent : T(c.away).accent;
+    const y = 60 + i * 66 + (it.total ? GAP : 0), [a, b] = spans[i], col = it.pts >= 0 ? T(c.home).accent : T(c.away).accent;
+    if (it.total) {
+      // sum rule: the margin is the total of the factors above
+      el("line", { x1: 40, x2: W - 10, y1: y - 6, y2: y - 6, stroke: "#9C9CA0", "stroke-width": 2.5 }, svg);
+      el("line", { x1: X(b), x2: X(b), y1: y - 14 - GAP, y2: y + 6, stroke: "#6B6B70", "stroke-width": 1.5, "stroke-dasharray": "3 3" }, svg);
+    }
     txt(svg, l - 18, y + 33, it.total ? it.label : it.label.toUpperCase(), { "text-anchor": "end", "font-size": 21, "font-weight": it.total ? 900 : 800, fill: it.total ? "#F4F4F2" : C.title });
     el("rect", { x: Math.min(X(a), X(b)), y: y + 6, width: Math.max(3, Math.abs(X(b) - X(a))), height: 40, fill: col, opacity: it.total ? 1 : 0.85 }, svg);
     if (i < rows.length - 1 && !rows[i + 1].total) el("line", { x1: X(b), x2: X(b), y1: y + 46, y2: y + 72, stroke: "#6B6B70", "stroke-width": 1.5, "stroke-dasharray": "3 3" }, svg);
