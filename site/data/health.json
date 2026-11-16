@@ -1,9 +1,7 @@
 {
- "status": "warn",
- "checked": "2026-11-16T01:10Z",
- "warnings": [
-  "LLM summary fell back to rule-based for 1 games (search the log for 'summary:')"
- ],
+ "status": "ok",
+ "checked": "2026-11-16T01:16Z",
+ "warnings": [],
  "errors": [],
  "info": {
   "week": 10,
@@ -58,9 +56,9 @@
   "projected_games": 122,
   "summaries": {
    "llm": 0,
-   "rule": 1,
+   "rule": 0,
    "kept": 12,
-   "cached": 1
+   "cached": 2
   },
   "luck": {
    "turnover_adjusted": true,
