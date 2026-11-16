@@ -680,6 +680,12 @@ function keyRes(rc, t, i) {
   if (r.status === "low") return `<span class="kres na">TOO FEW PLAYS TO GRADE (${r.n})</span>`;
   return `<span class="kres ${r.status === "won" ? "ok" : "no"}">${r.status === "won" ? "✓ WON" : "✗ LOST"}</span><small class="kval">In the game: ${r.off} ${fmt(r.value, r.fmt)} ${esc(r.label)} (league avg ${fmt(r.avg, r.fmt)}, ${r.n} ${r.label.includes("red-zone") ? "trips" : "plays"})</small>`;
 }
+// Default card count is even: an odd count rounds up when another card exists (5 -> 6); 5 with no 6th card shows 4.
+function evenN(target, avail) {
+  let k = Math.min(Math.max(target, 0), avail, 6);
+  if (k % 2 && k >= 3) k = avail > k ? k + 1 : k >= 5 ? k - 1 : k;
+  return k;
+}
 async function matchup(id, tab, focus) {
   const G = S.games, app = $("#app");
   showLoading("Loading matchup");
@@ -719,7 +725,7 @@ async function matchup(id, tab, focus) {
     const box = $(".cards", app); box.innerHTML = "";
     $(".topn", app).style.visibility = t === "model" || t === "fantasy" ? "hidden" : "visible";
     const all = t === "players" ? g.player_cards : t === "model" ? g.model_cards : t === "fantasy" ? g.fantasy_cards : g.team_cards;
-    const n = t === "model" || t === "fantasy" ? all.length : topSel.value === "10" ? 10 : (t === "players" ? g.player_n : g.team_n) ?? all.length;
+    const n = t === "model" || t === "fantasy" ? evenN(all.length, all.length) : topSel.value === "10" ? 10 : evenN((t === "players" ? g.player_n : g.team_n) ?? all.length, all.length);
     const list = all.slice(0, n);
     if (t === "model" && g.model) box.insertAdjacentHTML("beforeend", `<p class="summary model-sum"><b>OUR NUMBER VS. THE MARKET</b>${esc(g.model.summary)}<span>A different lens on the data, not betting advice.</span></p>`);
     if (t === "fantasy") box.insertAdjacentHTML("beforeend", `<p class="summary model-sum"><b>FANTASY LENS</b>Who is scoring more or less than their usage predicts, PPR scoring. Expected points come from each player's targets, carries, depth and field position.<span>For fun, not betting advice.</span></p>`);
@@ -730,7 +736,8 @@ async function matchup(id, tab, focus) {
   app.querySelectorAll(".tabs button").forEach(b => b.onclick = () => {
     show(b.dataset.tab); history.replaceState(null, "", `#/${G.season}/${G.week}/${id}` + (b.dataset.tab !== "team" ? "?tab=" + b.dataset.tab : ""));
   });
-  if (focus && ![...g.team_cards.slice(0, g.team_n), ...g.player_cards.slice(0, g.player_n)].some(c => c.id === focus)) topSel.value = "10";
+  if (focus && ![...g.team_cards.slice(0, evenN(g.team_n ?? 99, g.team_cards.length)), ...g.player_cards.slice(0, evenN(g.player_n ?? 99, g.player_cards.length)),
+    ...(g.fantasy_cards || [])].some(c => c.id === focus)) topSel.value = "10";
   const ftab = focus && [...g.player_cards].some(c => c.id === focus) ? "players" : focus && (g.fantasy_cards || []).some(c => c.id === focus) ? "fantasy" : tab;
   const okTab = t => t === "players" || (t === "model" && (g.model_cards || []).length) || (t === "fantasy" && (g.fantasy_cards || []).length);
   show(okTab(ftab) ? ftab : "team");
