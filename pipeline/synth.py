@@ -25,6 +25,12 @@ def _sig(x):
     return 1.0 / (1.0 + np.exp(-x))
 
 
+def _st(t):
+    """Fixed special-teams and fourth-down traits per synthetic team (deterministic, no rng draws)."""
+    h = sum(map(ord, t))
+    return {"kick": ((h % 9) - 4) * 0.02, "punt": ((h // 9) % 7 - 3) * 1.5, "agg": ((h // 63) % 7 - 3) * 0.08}
+
+
 def _ep(yl, down, togo):
     return 5.6 - 0.065 * yl - 0.35 * (down - 1) - 0.04 * (min(togo, 20) - 10)
 
@@ -73,7 +79,8 @@ def _schedule(rng, season, teams):
                 day, wd, gt = thu + dt.timedelta(days=3), "Sunday", "13:00" if i < 11 else "16:25"
             rows.append({"game_id": f"{season}_{wk:02d}_{a}_{h}", "season": season, "game_type": "REG",
                          "week": wk, "gameday": day.isoformat(), "weekday": wd, "gametime": gt,
-                         "away_team": a, "home_team": h, "div_game": int(TEAMS[a][3] == TEAMS[h][3])})
+                         "away_team": a, "home_team": h, "div_game": int(TEAMS[a][3] == TEAMS[h][3]),
+                         "away_coach": f"Coach {a}", "home_coach": f"Coach {h}"})
     return pd.DataFrame(rows)
 
 
@@ -101,14 +108,30 @@ def _sim_game(rng, g, P, PL, inj, out):
                 result = "End of half"
                 break
             if down == 4:
+                stp = _st(off)
+                t4 = clock / 3600.0
+                d4 = score[off] - score[de]
+                st = {"game_id": gid, "season": g.season, "season_type": "REG", "week": wk, "home_team": home, "away_team": away,
+                      "posteam": off, "defteam": de, "down": 4, "ydstogo": togo, "yardline_100": yl,
+                      "wp": float(_sig(1.2 * d4 / (7 * np.sqrt(max(t4, 0.02))))), "qtr": min(4, 1 + int((3600 - clock) // 900)),
+                      "half_seconds_remaining": clock - 1800 if clock > 1800 else clock, "score_differential": d4,
+                      "fixed_drive": drive_no}
+                e0 = _ep(yl, 4, togo)
                 if yl <= 35:
-                    if rng.random() < 0.85:
+                    made = rng.random() < 0.85 + stp["kick"] - 0.004 * max(yl - 20, 0)
+                    st.update(play_type="field_goal", field_goal_result="made" if made else "missed", kick_distance=yl + 18,
+                              epa=(3 - _ep(75, 1, 10) - e0) if made else (-_ep(100 - min(yl + 8, 80), 1, 10) - e0))
+                    drive_plays.append(st)
+                    if made:
                         score[off] += 3
-                        result = "Field goal"
-                    else:
-                        result = "Missed field goal"
+                    result = "Field goal" if made else "Missed field goal"
                     break
-                if not (togo <= 2 and yl <= 55 and rng.random() < 0.55):
+                if not (togo <= 2 and yl <= 55 and rng.random() < 0.55 + stp["agg"]):
+                    net = 41 + stp["punt"] + rng.normal(0, 6)
+                    land = yl - net
+                    opp_yl = 80 if land <= 0 else 100 - land
+                    st.update(play_type="punt", epa=-_ep(opp_yl, 1, 10) - e0)
+                    drive_plays.append(st)
                     result = "Punt"
                     break
             play_id += 1
@@ -314,9 +337,11 @@ def load_history(seasons, target_season, target_week, seed=11):
             for role, (side, pct) in ROLE_SNAP.items():
                 pid = f"00-SYN{t:>3}{role}".replace(" ", "X")
                 if g.week < target_week or g.season < target_season:
-                    v = float(np.clip(rng.normal(pct, 0.05), 0, 1))
+                    trend = 0.025 * (g.week - 6) * (1 if role in ("RB2", "WR3") and sum(map(ord, t)) % 3 == 0 else
+                                                      -1 if role in ("RB1",) and sum(map(ord, t)) % 3 == 1 else 0)
+                    v = float(np.clip(rng.normal(pct + trend, 0.05), 0, 1))
                     snaps.append({"season": g.season, "game_type": "REG", "week": g.week, "pfr_player_id": "pfr" + pid,
-                                  "player": f"{t} {role}", "team": t, "offense_pct": v if side == "off" else 0.0,
+                                  "player": f"{t} {role}", "team": t, "position": role[:2], "offense_pct": v if side == "off" else 0.0,
                                   "defense_pct": v if side == "def" else 0.0})
                 if role != "QB1" and rng.random() < 0.08:
                     inj.append({"season": g.season, "game_type": "REG", "week": g.week, "team": t, "gsis_id": pid,

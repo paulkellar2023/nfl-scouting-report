@@ -101,8 +101,20 @@
     <p>Weekly Next Gen Stats and PFR rows are combined with the same 6-week recency weights as the play-by-play stats. Player stats need a minimum sample (100 attempts for QBs, 50 carries for RBs, 25 targets for receivers) and are not shrunk. Team stats (stacked boxes, pressure, tackling) are shrunk to the league mean. When PFR pressures are available they replace the "QB hit + sack" proxy for the team pressure card; the play-level proxy is still used for the clean-pocket and four-man-rush cards and for recaps. None of these are opponent-adjusted.</p>
   </section>
 
+  <section id="special"><h2>Special teams and fourth downs</h2>
+    <ul>
+      <li><b>Special teams EPA per game:</b> expected points added on punts, kickoffs, field goals and extra points, credited to the kicking or receiving side, recency-weighted and shrunk to the league mean.</li>
+      <li><b>Field goal points over expected:</b> 3 × (field goals made minus expected makes), where the expected make rate comes from nflverse's field goal model when present, otherwise from a logistic fit on kick distance. Not shrunk; kickers need 5+ attempts.</li>
+      <li><b>Fourth-down aggressiveness:</b> share of 4th-and-1 or 4th-and-2 at or past the team's own 40 where the offense runs a play instead of punting or kicking, with win probability 10-90% and outside the last 2 minutes of each half. Shrunk to the league mean.</li>
+    </ul>
+  </section>
+
+  <section id="elo"><h2>Elo</h2>
+    <p>Our own Elo ratings, built only from final scores since 2015 (538-style): K = 20, home field worth 48 Elo points, a margin-of-victory multiplier that is damped for heavy favorites, and one third of each rating pulled back to the average (1505) every offseason. Elo ignores how teams play, so it is an independent check on the model. It is shown next to the model and market and graded on the track record page.</p>
+  </section>
+
   <section id="fantasy"><h2>Fantasy tab</h2>
-    <p>Up to six cards per game from nflverse's expected fantasy points model (PPR), weekly player stats and ESPN QBR, ranked by how unusual each finding is: points per game over or under expected, touchdowns over or under expected, expected points per game (opportunity), points allowed by the opposing defense to each position, WOPR (1.5 × target share + 0.7 × air-yard share) and QBR. Expected points come from each player's targets, carries, air yards and field position, so a big gap between actual and expected usually shrinks. Season-to-date averages, not recency-weighted, and points allowed are not adjusted for the offenses a defense faced.</p>
+    <p>Up to six cards per game from nflverse's expected fantasy points model (PPR), weekly player stats and ESPN QBR, ranked by how unusual each finding is: points per game over or under expected, touchdowns over or under expected, expected points per game (opportunity), points allowed by the opposing defense to each position, WOPR (1.5 × target share + 0.7 × air-yard share), QBR, and snap-share trends (offensive snap share in a player's last 3 games minus his earlier games, from PFR snap counts). Expected points come from each player's targets, carries, air yards and field position, so a big gap between actual and expected usually shrinks. Season-to-date averages, not recency-weighted, and points allowed are not adjusted for the offenses a defense faced.</p>
   </section>
 
   <section id="recaps"><h2>Post-game recaps</h2>

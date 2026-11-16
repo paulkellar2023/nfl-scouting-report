@@ -184,7 +184,7 @@ def _cum(rows):
     return out
 
 
-def build(site, season, week, mmeta, synthetic):
+def build(site, season, week, mmeta, synthetic, elo_pre=None):
     """Season track record: published (graded) picks plus a walk-forward run over every game this season."""
     pub, back = [], []
     for wdir in sorted((Path(site) / "data" / str(season)).glob("wk*")):
@@ -203,22 +203,27 @@ def build(site, season, week, mmeta, synthetic):
             if hs == as_:
                 continue
             dest.append({"id": tile["id"], "week": board["week"], "home": h, "away": a,
-                         "p": tile["model"]["p_home"], "pm": tile["model"].get("mkt"),
+                         "p": tile["model"]["p_home"], "pm": tile["model"].get("mkt"), "pe": tile.get("elo"),
                          "final": tile["final"], "y": float(hs > as_), "backfill": dest is back})
     walk = []
     for r in (mmeta or {}).get("season_walk", []):
         if r["margin"] != 0:
-            walk.append({**r, "y": float(r["margin"] > 0)})
+            walk.append({**r, "y": float(r["margin"] > 0), "pe": (elo_pre or {}).get(r["id"])})
     pub_m = [x for x in pub if x.get("pm") is not None]
     walk_m = [x for x in walk if x.get("pm") is not None]
     back_m = [x for x in back if x.get("pm") is not None]
     site_all = sorted(back + pub, key=lambda x: x["week"])
+
+    def three(rows):
+        r3 = [x for x in rows if x.get("pm") is not None and x.get("pe") is not None]
+        return {"model": _score(r3, "p"), "market": _score(r3, "pm"), "elo": _score(r3, "pe")}
     out = {"season": season, "week": week,
-           "published": {"model": _score(pub_m, "p"), "market": _score(pub_m, "pm"), "games": pub[::-1], "cum": _cum(pub)},
-           "backfill": {"model": _score(back_m, "p"), "market": _score(back_m, "pm"),
+           "published": {"model": _score(pub_m, "p"), "market": _score(pub_m, "pm"), "elo": three(pub)["elo"],
+                         "games": pub[::-1], "cum": _cum(pub)},
+           "backfill": {"model": _score(back_m, "p"), "market": _score(back_m, "pm"), "elo": three(back)["elo"],
                         "weeks": sorted({x["week"] for x in back})},
            "site": {"games": site_all[::-1], "cum": _cum(site_all)},
-           "walk": {"model": _score(walk_m, "p"), "market": _score(walk_m, "pm"), "cum": _cum(walk)},
+           "walk": {"model": _score(walk_m, "p"), "market": _score(walk_m, "pm"), "elo": three(walk)["elo"], "cum": _cum(walk)},
            "backtest": (mmeta or {}).get("backtest", []), "calib": (mmeta or {}).get("calib", [])}
     p = Path(site) / "data" / str(season) / "record.json"
     p.write_text(json.dumps(out, separators=(",", ":")))

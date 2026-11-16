@@ -60,7 +60,7 @@ function favTxt(p, home, away) {
   return r === 50 ? "EVEN" : r > 50 ? `${home} ${r}%` : `${away} ${100 - r}%`;
 }
 function numsHTML(m, home, away) {
-  return `<div class="mline"><div><span>MODEL</span><b>${favTxt(m.p_home, home, away)}</b></div><div><span>MARKET</span><b>${favTxt(m.mkt, home, away)}</b></div></div>`;
+  return `<div class="mline"><div><span>MODEL</span><b>${favTxt(m.p_home, home, away)}</b></div><div><span>MARKET</span><b>${favTxt(m.mkt, home, away)}</b></div><div><span>ELO</span><b>${favTxt(m.elo, home, away)}</b></div></div>`;
 }
 const wkLabel = w => w.week === "PO" ? `Playoffs${w.projected ? " (projected)" : ""}` : `Week ${w.week}${w.projected ? " (projected)" : w.backfill ? " (backfilled)" : ""}`;
 const T = t => S.teams[t] || { accent: "#BBBBBB", color: "#444", label: t, nick: t, abbr: t };
@@ -537,7 +537,11 @@ function pbars(c) {
   txt(svg, (l + r) / 2, 50 + rows.length * rh + 44, c.axis || "", { "text-anchor": "middle", "font-size": 22, "font-weight": 900, fill: C.title });
   return svg;
 }
-const CHARTS = { pbars, cumline, tline, scatter, pscatter, duel, bars, gaps, splits, trend, pstrip, probbars, waterfall, dist, injuries, units, calib };
+function elotrend(c) {
+  return lineChart(c.series.filter(s => s.pts.length).map((s, i) => ({ label: s.team, color: i ? T(s.team).accent : T(s.team).accent, dash: i ? null : "10 8", pts: s.pts })),
+    { fy: "num0", y_label: "ELO RATING", y_sub: "1505 = average" });
+}
+const CHARTS = { elotrend, pbars, cumline, tline, scatter, pscatter, duel, bars, gaps, splits, trend, pstrip, probbars, waterfall, dist, injuries, units, calib };
 
 
 /* ---------- card ---------- */
@@ -700,7 +704,7 @@ async function matchup(id, tab, focus) {
       <div class="side">${logoHTML(g.away)}<div><h2>${esc(a.nick)}</h2><small>${esc(a.name)}</small></div></div>
       <div class="mid"><div class="k">${esc(g.kickoff)}${g.primetime ? " · PRIMETIME" : ""}${g.backfill ? " · BACKFILLED (PRE-WEEK DATA ONLY)" : g.after_kickoff ? " · BUILT AFTER KICKOFF (PRE-WEEK DATA ONLY)" : ""}</div>
         <div class="ln">${g.line ? esc(g.line.text) : "Line pending"}</div><div class="imp">${esc(imp)}${g.backfill && g.line ? " · closing line" : g.line && g.line_asof ? ` · line as of ${esc(g.line_asof.slice(5, 10).replace("-", "/"))}` : ""}</div>
-        ${g.model ? numsHTML({ p_home: g.model.p_home, mkt: g.model.market ? g.model.market.p_home : null }, g.home, g.away) : ""}
+        ${g.model ? numsHTML({ p_home: g.model.p_home, mkt: g.model.market ? g.model.market.p_home : null, elo: g.elo ? g.elo.p_home : null }, g.home, g.away) : ""}
         <div class="stakes">${stake(g.away)}${stake(g.home)}</div>${g.mode && g.mode !== "live" ? "" : '<button type="button" class="share-btn">COPY SHARE LINK</button>'}</div>
       <div class="side home">${logoHTML(g.home)}<div><h2>${esc(hm.nick)}</h2><small>${esc(hm.name)}</small></div></div>
     </section>
@@ -760,12 +764,11 @@ function chartBox(title, sub, svg, note) {
 }
 const pctS = v => (v === null || v === undefined) ? "–" : Math.round(v * 100) + "%";
 const ord = n => n === null || n === undefined ? "–" : n + (["th", "st", "nd", "rd"][(n % 100 > 10 && n % 100 < 14) ? 0 : Math.min(n % 10, 4) % 4] || "th");
-function statTile(label, m, k, note) {
+function statTile(label, m, k, note, e) {
   if (!m || !k) return `<div class="stat"><span>${esc(label)}</span><b>No graded games yet</b><small>${esc(note)}</small></div>`;
-  const better = m.brier < k.brier;
+  const all = [["MODEL", m], ["MARKET", k]].concat(e ? [["ELO", e]] : []), best = Math.min(...all.map(x => x[1].brier));
   return `<div class="stat"><span>${esc(label)}</span>
-    <div class="vs"><div><em>MODEL</em><b class="${better ? "up" : ""}">${m.brier.toFixed(3)}</b><small>${Math.round(m.acc * 100)}% picks right</small></div>
-    <div><em>MARKET</em><b class="${better ? "" : "up"}">${k.brier.toFixed(3)}</b><small>${Math.round(k.acc * 100)}% picks right</small></div></div>
+    <div class="vs ${e ? "three" : ""}">${all.map(([lab, x]) => `<div><em>${lab}</em><b class="${x.brier === best ? "up" : ""}">${x.brier.toFixed(3)}</b><small>${Math.round(x.acc * 100)}% picks right</small></div>`).join("")}</div>
     <small>Brier score, lower is better · ${m.n} games · ${esc(note)}</small></div>`;
 }
 async function recordView() {
@@ -773,15 +776,16 @@ async function recordView() {
   const r = await getSeason("record"), app = $("#app");
   app.innerHTML = `<div class="board-head"><h1>Model <span>track record</span></h1></div>
     <p class="board-note">Our win probabilities vs. the betting market, graded after every game. <a href="methods.html#record">How it is graded</a></p>
-    <section class="stats">${statTile("Published picks, " + r.season, r.published.model, r.published.market, "the last version on this site before kickoff")}
-    ${r.backfill && r.backfill.model ? statTile(`Backfilled picks, weeks ${r.backfill.weeks[0]}-${r.backfill.weeks[r.backfill.weeks.length - 1]}`, r.backfill.model, r.backfill.market, "rebuilt after the fact with pre-week data only, closing line") : ""}
-    ${statTile("Season walk-forward, " + r.season, r.walk.model, r.walk.market, "every game, each week fit only on earlier games")}</section>
+    <section class="stats">${statTile("Published picks, " + r.season, r.published.model, r.published.market, "the last version on this site before kickoff", r.published.elo)}
+    ${r.backfill && r.backfill.model ? statTile(`Backfilled picks, weeks ${r.backfill.weeks[0]}-${r.backfill.weeks[r.backfill.weeks.length - 1]}`, r.backfill.model, r.backfill.market, "rebuilt after the fact with pre-week data only, closing line", r.backfill.elo) : ""}
+    ${statTile("Season walk-forward, " + r.season, r.walk.model, r.walk.market, "every game, each week fit only on earlier games", r.walk.elo)}</section>
     <div class="cards rec-cards"></div>
-    <section class="log"><h2>Picks on this site</h2>${(r.site || r.published).games.length ? `<div class="tbl-wrap"><table class="tbl"><thead><tr><th>WK</th><th>GAME</th><th>MODEL</th><th>MARKET</th><th>FINAL</th></tr></thead><tbody>
+    <section class="log"><h2>Picks on this site</h2>${(r.site || r.published).games.length ? `<div class="tbl-wrap"><table class="tbl"><thead><tr><th>WK</th><th>GAME</th><th>MODEL</th><th>MARKET</th><th>ELO</th><th>FINAL</th></tr></thead><tbody>
     ${(r.site || r.published).games.map(x => { const ph = x.p, pk = x.pm, mt = ph >= 0.5 ? x.home : x.away, kt = pk === null ? null : pk >= 0.5 ? x.home : x.away, win = x.y ? x.home : x.away;
       return `<tr><td>${x.week}</td><td><a href="#/${r.season}/${x.week}/${x.id}">${x.away} at ${x.home}</a>${x.backfill ? ' <small class="pj">BACKFILL</small>' : ""}</td>
       <td class="${mt === win ? "ok" : "no"}">${mt} ${pctS(Math.max(ph, 1 - ph))} ${mt === win ? "✓" : "✗"}</td>
       <td class="${kt === win ? "ok" : "no"}">${kt ? `${kt} ${pctS(Math.max(pk, 1 - pk))} ${kt === win ? "✓" : "✗"}` : "–"}</td>
+      ${x.pe === null || x.pe === undefined ? "<td>\u2013</td>" : (() => { const et = x.pe >= 0.5 ? x.home : x.away; return `<td class="${et === win ? "ok" : "no"}">${et} ${pctS(Math.max(x.pe, 1 - x.pe))} ${et === win ? "✓" : "✗"}</td>`; })()}
       <td>${x.away} ${x.final[x.away]} · ${x.home} ${x.final[x.home]}</td></tr>`; }).join("")}</tbody></table></div>` : '<p class="empty">Picks are graded the week after they are published.</p>'}</section>`;
   const box = $(".rec-cards", app);
   if (r.walk.cum.length) box.appendChild(chartBox("Season to date: model vs. market", "Brier score of every game this season, walk-forward", cumline({ cum: r.walk.cum }),

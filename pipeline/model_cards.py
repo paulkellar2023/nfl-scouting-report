@@ -21,7 +21,7 @@ def _card(cid, owner, t1, t2, sub, chart, note, score=1.0):
             "t1": t1, "t2": t2, "sub": sub, "chart": chart, "source": SRC, "note": note}
 
 
-def build(mp, meta, M, names):
+def build(mp, meta, M, names, elo=None):
     h, a = mp["home"], mp["away"]
     H, A = M[h]["label"], M[a]["label"]
     lab = {h: H, a: A}
@@ -41,7 +41,7 @@ def build(mp, meta, M, names):
         cards.append(_card("market", side if abs(gap) >= 0.03 else fav, t1, t2,
                            f"Win probability. Market = {'vig-free moneyline' if mp['market']['source'] == 'moneyline' else 'spread converted to probability'} at build time.",
                            {"type": "probbars", "home": h, "away": a,
-                            "rows": [{"label": "MODEL", "p": ph}, {"label": "MARKET", "p": pm}]},
+                            "rows": [{"label": "MODEL", "p": ph}, {"label": "MARKET", "p": pm}] + ([{"label": "ELO", "p": elo["p_home"]}] if elo else [])},
                            "Not betting advice · market line at build time"))
 
     items = sorted([c for c in mp["contribs"] if abs(c["pts"]) >= 0.05], key=lambda c: -abs(c["pts"]))
@@ -54,6 +54,16 @@ def build(mp, meta, M, names):
                            {"type": "waterfall", "home": h, "away": a, "items": items, "total": m},
                            "Linear model, so contributions are exact SHAP values · vs. an average matchup"))
 
+    elo_card = None
+    if elo and (elo["hist"].get(h) or elo["hist"].get(a)):
+        ef, epf = _fav(elo["p_home"], h, a)
+        hi = max((h, a), key=lambda t: elo["now"][t])
+        elo_card = _card("elo", ef, f"Elo makes {lab[ef]} a {fmt(epf, 'pct')} favorite.",
+                         f"{lab[hi]} {elo['now'][hi]:.0f} vs. {lab[a if hi == h else h]} {elo['now'][a if hi == h else h]:.0f} (average 1505).",
+                         "Elo rating after each game this season. Elo uses only scores, so it is a check on the model.",
+                         {"type": "elotrend", "series": [{"team": t, "pts": elo["hist"].get(t, [])} for t in (a, h)]},
+                         "538-style Elo: K=20, home field 48 points, margin-of-victory multiplier, one third back to the mean each season")
+
     spread = mp["market"]["spread"]
     t2 = f"Market: {_line(spread, h, a)}." if spread is not None else "No market spread yet."
     if spread is not None and abs(spread - m) >= 1.5:
@@ -62,6 +72,8 @@ def build(mp, meta, M, names):
                        f"Distribution of {H}'s margin. Shaded area = {H} win ({fmt(ph, 'pct')}).",
                        {"type": "dist", "home": h, "away": a, "mu": m, "sigma": mp["sigma"], "market": spread},
                        f"Normal margin, sigma = {mp['sigma']:.1f} points (fit by log loss)"))
+    if elo_card:
+        cards.append(elo_card)
 
     if meta.get("injuries_available") and not mp.get("projected"):
         inj = mp["injuries"]
@@ -111,7 +123,7 @@ def build(mp, meta, M, names):
     return cards
 
 
-def summary(mp, M):
+def summary(mp, M, elo_p=None):
     h, a = mp["home"], mp["away"]
     lab = {h: M[h]["label"], a: M[a]["label"]}
     fav, pf = _fav(mp["p_home"], h, a)
@@ -120,6 +132,9 @@ def summary(mp, M):
     if pm is not None:
         mf, mpf = _fav(pm, h, a)
         s += f" Market: {lab[mf]} {fmt(mpf, 'pct')}."
+    if elo_p is not None:
+        ef, epf = _fav(elo_p, h, a)
+        s += f" Elo: {lab[ef]} {fmt(epf, 'pct')}."
     items = sorted(mp["contribs"], key=lambda c: -abs(c["pts"]))
     if items and abs(items[0]["pts"]) >= 0.3:
         t = h if items[0]["pts"] > 0 else a

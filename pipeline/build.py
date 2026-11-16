@@ -10,7 +10,7 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-from . import (assets, bracket, clean, context, extras, fantasy, feeds, health, league, leverage, model, model_cards, notify,
+from . import (assets, bracket, clean, context, elo, extras, fantasy, special, feeds, health, league, leverage, model, model_cards, notify,
                record, share, stats, story, summary, templates_player, templates_team)
 from .text import agree
 from .config import BUTTONDOWN_USERNAME, EMAIL_PER_TEAM, GOATCOUNTER_CODE, MODEL_FIRST_SEASON, SITE_URL
@@ -154,6 +154,12 @@ def main():
     form = templates_team.form_tables(plays)
     luck = templates_team.luck_tables(plays) if flags["int_worthy"] else None
     ptabs = templates_player.build_tables(plays, flags, X)
+    SP = special.tables(raw["pbp"], args.season, week)
+    snap_t = fantasy.snap_table((hist or {}).get("snaps"), args.season, week)
+    if snap_t is not None:
+        ptabs["snap"] = snap_t
+    E = elo.Elo((hist or {}).get("sched") if (hist or {}).get("sched") is not None else raw["sched"], args.season, week)
+    health.info("phase4", {"special": sorted(SP), "snaps": snap_t is not None, "elo_teams": len(E.r)})
 
     preds, mmeta, predict = {}, None, None
     if hist is not None and hist.get("sched") is not None:
@@ -204,7 +210,7 @@ def main():
     def make(g, mode, label, ko_text=None, neutral=False):
         """mode: live (this week) | proj (future regular-season week) | po (playoff game)."""
         a_, h_ = g.away_team, g.home_team
-        game = {"span": span}
+        game = {"span": span, "coach": {a_: g.get("away_coach"), h_: g.get("home_coach")}}
         cands = []
         for t in tpls:
             for off, de in ((a_, h_), (h_, a_)):
@@ -219,7 +225,8 @@ def main():
                 specials.append(story.shell_card(shells, off, de, M, game))
         specials = [s for s in specials if s]
         ctxs = [story.form_card(form, a_, h_, M, game), story.luck_card(luck, a_, h_, M, game),
-                extras.box_card(X, a_, h_, M, game), extras.box_card(X, h_, a_, M, game)]
+                extras.box_card(X, a_, h_, M, game), extras.box_card(X, h_, a_, M, game),
+                special.st_card(SP, a_, h_, M, game), special.fg_card(SP, a_, h_, M, game), special.fourth_card(SP, a_, h_, M, game)]
         team_cards, team_n = story.select(rendered + specials + [c for c in ctxs if c], MIN_TEAM_CARDS, MAX_TEAM_CARDS, (a_, h_))
         pc = templates_player.Cards(ptabs, pctx, M, tpls, game)
         player_cards, player_n = templates_player.select(pc.all(a_, h_), MIN_PLAYER_CARDS, MAX_PLAYER_CARDS)
@@ -242,7 +249,8 @@ def main():
             mp = predict(h_, a_, neutral, rest, g.get("spread_line"), g.get("home_moneyline"), g.get("away_moneyline"))
         else:
             mp = None
-        mcards = model_cards.build(mp, mmeta, M, pctx["names"]) if mp else []
+        ed = E.card_data(h_, a_, neutral)
+        mcards = model_cards.build(mp, mmeta, M, pctx["names"], ed) if mp else []
         kicker = f"{M[a_]['nick']} at {M[h_]['nick']} · {label}, {args.season}".upper()
         plurals = [M[t]["label"] for t in (a_, h_) if M[t].get("plural")]
         for c in team_cards + player_cards + fantasy_cards + mcards:
@@ -296,11 +304,13 @@ def main():
                "after_kickoff": kicked_off(g, now) if mode == "live" else False, "line_asof": ln_asof, "line_now": ln_now,
                "mode": mode, "through_week": week - 1, "backfill": args.backfill,
                "model": ({"p_home": mp["p_home"], "margin": mp["margin"], "market": mp["market"],
-                          "summary": agree(model_cards.summary(mp, M), plurals)} if mp else None),
+                          "summary": agree(model_cards.summary(mp, M, ed["p_home"]), plurals)} if mp else None),
+               "elo": ed,
                "model_cards": mcards}
         tile = {"id": g.game_id, "away": a_, "home": h_, "kickoff": ko, "primetime": prime,
                 "line": ln, "leverage": lv["leverage"], "heat": heat, "ko": f"{g.get('gameday')}T{g.get('gametime')}",
-                "model": {"p_home": mp["p_home"], "mkt": mp["market"]["p_home"]} if mp else None,
+                "model": {"p_home": mp["p_home"], "mkt": mp["market"]["p_home"], "elo": ed["p_home"]} if mp else None,
+                "elo": ed["p_home"],
                 "rank": lv["leverage"] + (PRIMETIME_BONUS if prime else 0.0),
                 "tease": [team_cards[0]["t1"], team_cards[0]["t2"]] if team_cards else None,
                 "tease_owner": team_cards[0]["owner"] if team_cards else None}
@@ -418,7 +428,7 @@ def main():
 
     # ---------- recaps, record, league, share pages ----------
     n_graded = record.grade_weeks(site, args.season, week, sched, plays, tpls, M, synth_run)
-    n_pub, n_walk = record.build(site, args.season, week, mmeta, synth_run)
+    n_pub, n_walk = record.build(site, args.season, week, mmeta, synth_run, E.pre)
     league.build(site, args.season, week, plays, sched, tpls, lev_teams, lev_proj, M, pctx["qb"], pctx["names"], synth_run)
     for od in ddir.glob("wk*"):
         if od != wdir and od.name[2:].isdigit() and (od / "games.json").exists() \

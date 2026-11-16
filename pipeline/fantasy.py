@@ -1,12 +1,14 @@
 """Fantasy tab: usage vs. production cards from nflverse expected fantasy points (PPR), weekly player stats
 (WOPR) and ESPN QBR. Each card points at players likely to score more or less than they have so far."""
 import numpy as np
+import pandas as pd
 
 from .context import short_name
 from .extras import SRC_FF, SRC_PS, SRC_QBR
 from .templates_player import Cards, _r, _rank, _z
 from .text import ordinal, possessive as poss
 
+SRC_SNAP = "NFLVERSE SNAP COUNTS (PRO FOOTBALL REFERENCE)"
 POS_NAME = {"QB": "quarterbacks", "RB": "running backs", "WR": "wide receivers", "TE": "tight ends"}
 MAX_CARDS = 6
 
@@ -22,7 +24,30 @@ def _most(r, n):
 class Fantasy(Cards):
     def all(self, a, b):
         return [c for c in (self.fpoe(a, b), self.td_luck(a, b), self.volume(a, b), self.matchup(a, b),
-                            self.wopr(a, b), self.qbr(a, b)) if c]
+                            self.wopr(a, b), self.qbr(a, b), self.snaps(a, b)) if c]
+
+    def snaps(self, a, b):
+        tab = self.T.get("snap")
+        if tab is None:
+            return None
+        sub = tab[tab["team"].isin([a, b]) & ((tab["recent"] >= 0.25) | (tab["prior"] >= 0.25))]
+        if len(sub) < 3:
+            return None
+        sub = sub.reindex(sub["delta"].abs().sort_values(ascending=False).index)[:10]
+        own = sub.index[0]
+        x = sub.loc[own]
+        if abs(x["delta"]) < 0.08:
+            return None
+        nm = x["name"]
+        l1 = (f"{nm}'s snap share jumped from {round(100 * x['prior'])}% to {round(100 * x['recent'])}% over his last 3 games." if x["delta"] > 0 else
+              f"{nm}'s snap share fell from {round(100 * x['prior'])}% to {round(100 * x['recent'])}% over his last 3 games.")
+        l2 = "Usage moves before fantasy points do." if x["delta"] > 0 else "Less time on the field usually means fewer points."
+        rows = [{"id": i, "name": r["name"], "short": short_name(r["name"]), "team": r["team"], "v": _r(100 * r["delta"], 1),
+                 "hl": i == own, "img": None} for i, r in sub.sort_values("delta", ascending=False).iterrows()]
+        return self._card(f"snaps:{own}", x["team"], 0.8 * abs(x["delta"]) / 0.12, l1, l2,
+                          f"Offensive snap share, last 3 games minus earlier games, RBs, WRs and TEs, {self.game['span']}.",
+                          {"type": "pbars", "fmt": "yds", "axis": "SNAP SHARE CHANGE (PERCENTAGE POINTS)", "rows": rows},
+                          f"{nm}: {int(x['n'])} games played", SRC_SNAP)
 
     def _players(self, a, b, k=6):
         ff = self.T.get("ff")
@@ -190,6 +215,31 @@ class Fantasy(Cards):
                           {"type": "pstrip", "pts": pts, "fmt": "num1", "axis": "ESPN QBR (0-100, weighted by plays)",
                            "avg": _r(float(vals.mean()))},
                           "QBR credits passing, rushing, sacks and penalties, adjusted for game situation", SRC_QBR)
+
+
+def snap_table(snaps, season, week):
+    """Per player: offensive snap share in his last 3 games vs. his earlier games this season."""
+    if snaps is None or not len(snaps) or not {"week", "team", "offense_pct", "player"} <= set(snaps.columns):
+        return None
+    d = snaps.copy()
+    if "season" in d.columns:
+        d = d[d["season"] == season]
+    if "game_type" in d.columns:
+        d = d[d["game_type"] == "REG"]
+    d = d[d["week"] < week]
+    if "position" in d.columns:
+        d = d[d["position"].isin(["RB", "WR", "TE"])]
+    d["pct"] = pd.to_numeric(d["offense_pct"], errors="coerce")
+    d["pct"] = np.where(d["pct"] > 1.5, d["pct"] / 100, d["pct"])
+    key = "pfr_player_id" if "pfr_player_id" in d.columns else "player"
+    rows = {}
+    for pid, g in d.sort_values("week").groupby(key):
+        if len(g) < 5:
+            continue
+        rec, pri = g["pct"].iloc[-3:].mean(), g["pct"].iloc[:-3].mean()
+        rows[pid] = {"name": g["player"].iloc[-1], "team": g["team"].iloc[-1], "recent": rec, "prior": pri,
+                     "delta": rec - pri, "n": len(g)}
+    return pd.DataFrame.from_dict(rows, orient="index") if rows else None
 
 
 def select(cards):
