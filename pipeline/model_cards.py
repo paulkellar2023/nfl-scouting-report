@@ -75,7 +75,7 @@ def build(mp, meta, M, names, elo=None):
     if elo_card:
         cards.append(elo_card)
 
-    if meta.get("injuries_available") and not mp.get("projected"):
+    if meta.get("injuries_available") and not mp.get("projected") and any(mp["injuries"].get(t) for t in (h, a)):
         inj = mp["injuries"]
         load = {t: sum(r["weight"] for r in inj.get(t, [])) for t in (h, a)}
         worse = max((h, a), key=lambda t: load[t])
