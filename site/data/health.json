@@ -1,6 +1,6 @@
 {
  "status": "warn",
- "checked": "2026-11-16T03:00Z",
+ "checked": "2026-11-16T03:13Z",
  "warnings": [
   "LLM summary fell back to rule-based for 1 games (search the log for 'summary:')"
  ],
@@ -34,6 +34,17 @@
    "wopr",
    "wr_cush",
    "wr_sep"
+  ],
+  "visuals": [
+   "att",
+   "cell_def",
+   "cell_off",
+   "drives",
+   "fourth",
+   "gap_def",
+   "gap_off",
+   "qbp",
+   "runs"
   ],
   "phase4": {
    "special": [
