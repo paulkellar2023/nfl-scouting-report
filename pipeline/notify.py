@@ -71,6 +71,8 @@ def send_week(wdir, teams, ordered_ids, week):
             pass
     status = "about_to_send" if EMAIL_MODE == "send" else "draft"
     hdr = {"Authorization": f"Token {key}"}
+    if status == "about_to_send":
+        hdr["X-Buttondown-Live-Dangerously"] = "true"  # newer API versions refuse a direct send without it
     jobs = [(f"{SITE_TITLE}: Week {week} preview", _digest_body(docs, week, teams), "ALL" if EMAIL_PER_TEAM else None)]
     for d in (docs if EMAIL_PER_TEAM else []):
         for t in (d["away"], d["home"]):
