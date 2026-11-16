@@ -39,13 +39,14 @@ def _pct(w, g):
     return w / g if g else 0.5
 
 
-def rank(teams, S, M):
-    """Order by win %; ties broken by head-to-head (within the tied group), division % (same division only),
+def rank(teams, S, M, score=None):
+    """Order by score (win % by default, or projected wins); ties broken by head-to-head (within the tied group), division % (same division only),
     conference %, point differential, then name. Approximate: the NFL's full procedure has more steps."""
-    teams = sorted(teams, key=lambda t: -_pct(S[t]["w"], S[t]["g"]))
+    score = score or (lambda t: _pct(S[t]["w"], S[t]["g"]))
+    teams = sorted(teams, key=lambda t: -score(t))
     out, i = [], 0
     while i < len(teams):
-        grp = [t for t in teams if abs(_pct(S[t]["w"], S[t]["g"]) - _pct(S[teams[i]]["w"], S[teams[i]]["g"])) < 1e-9]
+        grp = [t for t in teams if abs(score(t) - score(teams[i])) < 1e-9]
         if len(grp) > 1:
             same_div = len({M[t]["division"] for t in grp}) == 1
 
@@ -60,24 +61,26 @@ def rank(teams, S, M):
     return out
 
 
-def seeds(S, M):
+def seeds(S, M, score=None):
     out = {}
     for conf in sorted({m["conf"] for m in M.values()}):
         ct = [t for t in M if M[t]["conf"] == conf]
-        winners = [rank([t for t in ct if M[t]["division"] == d], S, M)[0] for d in sorted({M[t]["division"] for t in ct})]
-        wins = rank(winners, S, M)
-        wild = rank([t for t in ct if t not in winners], S, M)[:3]
+        winners = [rank([t for t in ct if M[t]["division"] == d], S, M, score)[0] for d in sorted({M[t]["division"] for t in ct})]
+        wins = rank(winners, S, M, score)
+        wild = rank([t for t in ct if t not in winners], S, M, score)[:3]
         out[conf] = [{"seed": i + 1, "team": t, "w": int(S[t]["w"] - S[t]["t"] / 2), "t": S[t]["t"],
                       "l": int(S[t]["g"] - S[t]["w"] - S[t]["t"] / 2)} for i, t in enumerate(wins + wild)]
     return out
 
 
-def plan(sched, season, M, prob):
+def plan(sched, season, M, prob, proj=None):
     """prob(home, away, neutral) -> P(home wins) or None. Returns (status, seeds, rounds)."""
     reg = sched[(sched["season"] == season) & (sched["game_type"] == "REG")]
     S = standings(reg, M)
     final = bool(len(reg)) and reg["result"].notna().all()
-    sd = seeds(S, M)
+    # Before week 18 ends, seed by projected final wins (season simulations); after it, by the real standings.
+    by_proj = bool(proj) and not final
+    sd = seeds(S, M, (lambda t: (proj.get(t) or [0])[0]) if by_proj else None)
     post = sched[(sched["season"] == season) & (sched["game_type"].isin(SCHED_TYPE.values()))]
     seed_of = {x["team"]: (c, x["seed"]) for c, xs in sd.items() for x in xs}
     alive = {c: [x["team"] for x in xs] for c, xs in sd.items()}
@@ -135,4 +138,5 @@ def plan(sched, season, M, prob):
         a, b = sorted(champs.values(), key=lambda t: (-_pct(S[t]["w"], S[t]["g"]), t))
         rounds.append({"code": "SB", "name": "Super Bowl", "games": [dict(game("SB", a, b, neutral=True), conf=None)]})
     status = "final" if final else "projected"
+    plan.by_proj = by_proj
     return status, sd, rounds, S

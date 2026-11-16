@@ -370,4 +370,6 @@ main { flex: 1; width: 100%; max-width: 1520px; margin: 0 auto; padding: 24px 16
   .bcol.sb { order: 7; grid-column: 1 / -1; max-width: 420px; }
 }
 @media (max-width: 760px) { .bracket { grid-template-columns: 1fr; } .bcol.sb { max-width: none; } }
+.seed-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 460px), 1fr)); gap: 14px; }
+.tbl.seeds td:not(.tm), .tbl.seeds th:not(:nth-child(2)) { text-align: center; }
 @media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }

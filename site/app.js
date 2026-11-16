@@ -809,6 +809,7 @@ function rankCell(r) {
 async function bracketView() {
   showLoading("Loading bracket");
   const B = await getSeason("bracket"), app = $("#app");
+  const L = await getSeason("league").catch(() => null);
   const sl = (gm, t) => gm.seeds && gm.seeds[t] ? `<i>${gm.seeds[t]}</i>` : "<i></i>";
   const pr = (gm, t) => gm.final ? `<em>${gm.final[t]}</em>` : gm.p_home === null || gm.p_home === undefined ? "<em>\u2013</em>" : `<em>${Math.round((t === gm.home ? gm.p_home : 1 - gm.p_home) * 100)}%</em>`;
   const box = gm => `<a class="bg ${gm.actual ? "real" : ""}" href="#/${B.season}/PO/${gm.id}">${[gm.away, gm.home].map(t => `<span class="${gm.winner === t ? "w" : "l"}">${sl(gm, t)}${logoHTML(t)}<b><span class="nk">${esc(T(t).nick)}</span><span class="ab">${t}</span></b>${pr(gm, t)}</span>`).join("")}</a>`;
@@ -823,11 +824,17 @@ async function bracketView() {
     ${B.champion ? `<p class="champ">${logoHTML(B.champion)}<b>${esc(T(B.champion).nick)}</b><small>${B.status === "final" ? "CHAMPION" : "MODEL FAVORITE"}</small></p>` : ""}</div></div>`);
   if (confs[1]) cols.push(rcol("CON", confs[1], "CONFERENCE", "R"), rcol("DIV", confs[1], "DIVISIONAL", "R"), rcol("WC", confs[1], "WILD CARD", "R"));
   app.innerHTML = `<div class="board-head"><h1>Playoff <span>${B.status === "final" ? "bracket" : "picture"}</span></h1></div>
-    <p class="board-note">${B.status === "final" ? "Regular season is over. Real matchups and results are shown; rounds not yet set are filled with the model favorite." : `If the season ended today: seeds from current standings (through week ${B.through_week}), every later round filled by the model favorite. Tiebreakers are approximate.`} Click any matchup for its full cards. Model odds are luck-adjusted: ratings are corrected for the injuries each team played through${B.luck && B.luck.turnover_adjusted ? " and fumble-recovery luck is removed" : ""}, and every team is projected at full health. <a href="methods.html#luck">How it works</a></p>
+    <p class="board-note">${B.status === "final" ? "Regular season is over. Real matchups and results are shown; rounds not yet set are filled with the model favorite." : (B.seed_basis === "projected" ? `Seeds from projected final records (10,000 simulations of the rest of the season, data through week ${B.through_week}); every round is filled by the model favorite.` : `If the season ended today: seeds from current standings (through week ${B.through_week}), every later round filled by the model favorite. Tiebreakers are approximate.`)} Click any matchup for its full cards. Model odds are luck-adjusted: ratings are corrected for the injuries each team played through${B.luck && B.luck.turnover_adjusted ? " and fumble-recovery luck is removed" : ""}, and every team is projected at full health. <a href="methods.html#luck">How it works</a></p>
     <div class="bracket">${cols.join("")}</div>
-    <section class="log"><h2>Seeds</h2><div class="tbl-wrap"><table class="tbl"><thead><tr><th>SEED</th><th>AFC</th><th>W-L</th><th>NFC</th><th>W-L</th></tr></thead><tbody>
-    ${[0, 1, 2, 3, 4, 5, 6].map(i => `<tr><td>${i + 1}</td>${["AFC", "NFC"].map(c => { const s = (B.seeds[c] || [])[i]; return s ? `<td class="tm"><a href="#/team/${s.team}">${logoHTML(s.team)}<b>${esc(T(s.team).nick)}</b></a></td><td>${s.w}-${s.l}${s.t ? "-" + s.t : ""}</td>` : "<td></td><td></td>"; }).join("")}</tr>`).join("")}
-    </tbody></table></div></section>`;
+    <section class="log"><h2>Seeds</h2><div class="seed-grid">${["AFC", "NFC"].filter(c => B.seeds[c]).map(c => `<div class="tbl-wrap"><table class="tbl seeds">
+      <thead><tr><th>${c}</th><th>TEAM</th><th>W-L</th><th title="Pythagorean expected record from points scored and allowed">EXP W-L</th><th title="Average final record in 10,000 season simulations">PROJ</th></tr></thead><tbody>
+      ${B.seeds[c].map(sd => { const x = (L && L.teams[sd.team]) || {}, g = (x.w ?? 0) + (x.l ?? 0) + (x.t ?? 0);
+        return `<tr><td>${sd.seed}</td><td class="tm"><a href="#/team/${sd.team}">${logoHTML(sd.team)}<b>${esc(T(sd.team).nick)}</b></a></td>
+        <td>${sd.w}-${sd.l}${sd.t ? "-" + sd.t : ""}</td>
+        <td>${x.xw === null || x.xw === undefined ? "\u2013" : `${x.xw.toFixed(1)}-${(g - x.xw).toFixed(1)}`}</td>
+        <td>${x.proj ? `${x.proj[0].toFixed(1)}-${x.proj[1].toFixed(1)}` : "\u2013"}</td></tr>`; }).join("")}
+      </tbody></table></div>`).join("")}</div>
+    <p class="board-note">EXP W-L = record the points scored and allowed would predict (Pythagorean, exponent 2.37). PROJ = average final record in 10,000 simulations of the rest of the season.</p></section>`;
 }
 async function teamsView(sortKey) {
   showLoading("Loading teams");

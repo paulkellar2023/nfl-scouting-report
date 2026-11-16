@@ -372,7 +372,7 @@ def main():
     def prob(h, a, neutral):
         p = predict(h, a, neutral) if predict else None
         return p["p_home"] if p else None
-    status, sd, rounds, _ = bracket.plan(sched, args.season, M, prob)
+    status, sd, rounds, _ = bracket.plan(sched, args.season, M, prob, lev_proj)
     podir = ddir / "wkPO"
     shutil.rmtree(podir, ignore_errors=True)
     pob, out_rounds = [], []
@@ -404,6 +404,7 @@ def main():
     champ = out_rounds[-1]["games"][0]["winner"] if out_rounds and out_rounds[-1]["code"] == "SB" else None
     _write(ddir / "bracket.json", {"season": args.season, "status": status, "through_week": week - 1, "built": built,
                                    "seeds": sd, "rounds": out_rounds, "champion": champ, "synthetic": synth_run,
+                                   "seed_basis": "projected" if getattr(bracket.plan, "by_proj", False) else "standings",
                                    "luck": (mmeta or {}).get("luck")})
     log.info("projected: %d games in weeks %s · bracket %s, %d games", n_proj, fut, status, len(pob))
 
