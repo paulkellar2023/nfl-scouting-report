@@ -10,7 +10,7 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-from . import (assets, bracket, clean, context, elo, extras, fantasy, special, feeds, health, league, leverage, model, model_cards, notify,
+from . import (assets, bracket, clean, context, elo, extras, fantasy, special, tendencies, feeds, health, league, leverage, model, model_cards, notify,
                record, share, stats, story, summary, templates_player, templates_team)
 from .text import agree
 from .config import BUTTONDOWN_USERNAME, EMAIL_PER_TEAM, GOATCOUNTER_CODE, MODEL_FIRST_SEASON, SITE_URL
@@ -155,6 +155,7 @@ def main():
     luck = templates_team.luck_tables(plays) if flags["int_worthy"] else None
     ptabs = templates_player.build_tables(plays, flags, X)
     SP = special.tables(raw["pbp"], args.season, week)
+    TX = tendencies.tables(plays, tpls)
     snap_t = fantasy.snap_table((hist or {}).get("snaps"), args.season, week)
     if snap_t is not None:
         ptabs["snap"] = snap_t
@@ -226,7 +227,8 @@ def main():
         specials = [s for s in specials if s]
         ctxs = [story.form_card(form, a_, h_, M, game), story.luck_card(luck, a_, h_, M, game),
                 extras.box_card(X, a_, h_, M, game), extras.box_card(X, h_, a_, M, game),
-                special.st_card(SP, a_, h_, M, game), special.fg_card(SP, a_, h_, M, game), special.fourth_card(SP, a_, h_, M, game)]
+                special.st_card(SP, a_, h_, M, game), special.fg_card(SP, a_, h_, M, game), special.fourth_card(SP, a_, h_, M, game),
+                tendencies.zone_card(TX, a_, h_, M, game), tendencies.lean_card(TX, a_, h_, M, game)]
         team_cards, team_n = story.select(rendered + specials + [c for c in ctxs if c], MIN_TEAM_CARDS, MAX_TEAM_CARDS, (a_, h_))
         pc = templates_player.Cards(ptabs, pctx, M, tpls, game)
         player_cards, player_n = templates_player.select(pc.all(a_, h_), MIN_PLAYER_CARDS, MAX_PLAYER_CARDS)

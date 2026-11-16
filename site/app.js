@@ -561,7 +561,50 @@ function elotrend(c) {
   return lineChart(c.series.filter(s => s.pts.length).map((s, i) => ({ label: s.team, color: i ? T(s.team).accent : T(s.team).accent, dash: i ? null : "10 8", pts: s.pts })),
     { fy: "num0", y_label: "ELO RATING", y_sub: "1505 = average" });
 }
-const CHARTS = { elotrend, pbars, cumline, tline, scatter, pscatter, duel, bars, gaps, splits, trend, pstrip, probbars, waterfall, dist, injuries, units, calib };
+function zones(c) {
+  const svg = newSvg(560), pw = 440, gap = 80, x0s = [(W - 2 * pw - gap) / 2, (W - 2 * pw - gap) / 2 + pw + gap], top = 70, ch = 190, cw = pw / 3;
+  [c.off, c.def].forEach((side, k) => {
+    const x0 = x0s[k], m = T(side.team), vals = side.cells.map(q => q.v).filter(v => v !== null);
+    txt(svg, x0 + pw / 2, top - 22, side.label, { "text-anchor": "middle", "font-size": 20, "font-weight": 900, fill: m.accent, "letter-spacing": ".06em" });
+    el("rect", { x: x0, y: top, width: pw, height: 2 * ch, rx: 10, fill: "#16161A", stroke: "#2A2A30", "stroke-width": 2 }, svg);
+    side.cells.forEach(q => {
+      const col = ["left", "middle", "right"].indexOf(q.side), row = q.depth === "deep" ? 0 : 1, x = x0 + col * cw, y = top + row * ch;
+      // offense: share vs. league share; defense: EPA allowed vs. league EPA in that zone (higher = worse defense)
+      const rel = q.v === null ? 0 : k === 0 ? (q.v / (q.lg || 1) - 1) * 2.5 : (q.v - q.lg) * 4;
+      const a = Math.max(0, Math.min(0.85, rel));
+      el("rect", { x: x + 4, y: y + 4, width: cw - 8, height: ch - 8, rx: 8, fill: m.accent, opacity: (0.08 + a).toFixed(2) }, svg);
+      if (q.zone === c.hl) el("rect", { x: x + 4, y: y + 4, width: cw - 8, height: ch - 8, rx: 8, fill: "none", stroke: "#F4F4F2", "stroke-width": 4 }, svg);
+      txt(svg, x + cw / 2, y + ch / 2 + 6, q.v === null ? "\u2013" : fmt(q.v, side.fmt), { "text-anchor": "middle", "font-size": 36, style: "font-family:var(--num)", "font-weight": 600, fill: "#F4F4F2" });
+      txt(svg, x + cw / 2, y + ch / 2 + 40, "avg " + fmt(q.lg, side.fmt), { "text-anchor": "middle", "font-size": 18, "font-weight": 300, fill: "#BDBDBD" });
+    });
+    el("line", { x1: x0, x2: x0 + pw, y1: top + ch, y2: top + ch, stroke: "#55555B", "stroke-width": 2, "stroke-dasharray": "8 6" }, svg);
+    txt(svg, x0 - 12, top + ch / 2, "DEEP", { "text-anchor": "end", "font-size": 16, "font-weight": 900, fill: C.tick });
+    txt(svg, x0 - 12, top + 1.5 * ch, "SHORT", { "text-anchor": "end", "font-size": 16, "font-weight": 900, fill: C.tick });
+    ["LEFT", "MIDDLE", "RIGHT"].forEach((l, i) => txt(svg, x0 + (i + 0.5) * cw, top + 2 * ch + 30, l, { "text-anchor": "middle", "font-size": 16, "font-weight": 900, fill: C.tick }));
+  });
+  txt(svg, W / 2, 540, "LINE OF SCRIMMAGE AT THE BOTTOM · DEEP = 10+ AIR YARDS", { "text-anchor": "middle", "font-size": 16, "font-weight": 300, fill: "#BDBDBD" });
+  return svg;
+}
+function strips(c) {
+  const svg = newSvg(160 + c.rows.length * 240), box = { l: 60, r: W - 60 };
+  c.rows.forEach((row, i) => {
+    const y = 120 + i * 240, vals = row.pts.map(p => p.v), [x0, x1] = extent(vals, 0.08), X = lin(x0, x1, box.l, box.r), m = T(row.hl);
+    txt(svg, box.l, y - 70, row.label, { "font-size": 20, "font-weight": 900, fill: m.accent, "letter-spacing": ".05em" });
+    el("line", { x1: box.l, x2: box.r, y1: y, y2: y, stroke: "#2A2A30", "stroke-width": 2 }, svg);
+    const avg = vals.reduce((s, v) => s + v, 0) / vals.length;
+    dashed(svg, X(avg), y - 40, X(avg), y + 40);
+    row.pts.filter(p => p.team !== row.hl).forEach(p => logo(svg, p.team, X(p.v), y, 34, { dim: true }));
+    const hp = row.pts.find(p => p.team === row.hl);
+    if (hp) {
+      logo(svg, hp.team, X(hp.v), y, 74, { hl: true });
+      txt(svg, X(hp.v), y + 70, fmt(hp.v, row.fmt), { "text-anchor": "middle", "font-size": 34, style: "font-family:var(--num)", "font-weight": 600, fill: m.accent });
+    }
+    txt(svg, box.l, y + 110, "\u2190 " + row.left, { "font-size": 15, "font-weight": 900, fill: C.tick });
+    txt(svg, box.r, y + 110, row.right + " \u2192", { "text-anchor": "end", "font-size": 15, "font-weight": 900, fill: C.tick });
+  });
+  return svg;
+}
+const CHARTS = { zones, strips, elotrend, pbars, cumline, tline, scatter, pscatter, duel, bars, gaps, splits, trend, pstrip, probbars, waterfall, dist, injuries, units, calib };
 
 
 /* ---------- card ---------- */
