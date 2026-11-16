@@ -25,6 +25,11 @@ def _sig(x):
     return 1.0 / (1.0 + np.exp(-x))
 
 
+PEN_TYPES = [("Offensive Holding", 10), ("False Start", 5), ("Defensive Pass Interference", 15), ("Defensive Holding", 5),
+             ("Unnecessary Roughness", 15), ("Roughing the Passer", 15), ("Delay of Game", 5), ("Illegal Formation", 5),
+             ("Defensive Offside", 5), ("Face Mask", 15)]
+
+
 def _st(t):
     """Fixed special-teams and fourth-down traits per synthetic team (deterministic, no rng draws)."""
     h = sum(map(ord, t))
@@ -258,6 +263,11 @@ def _sim_game(rng, g, P, PL, inj, out):
             r["epa"] = float(epa)
             r["success"] = float(epa > 0)
             clock -= rng.uniform(22, 38) - 3 * P[off]["pace"]
+            pen_rate = 0.05 + 0.002 * (sum(map(ord, off)) % 15)
+            if rng.random() < pen_rate:
+                bad = off if rng.random() < 0.55 else de
+                kind = PEN_TYPES[int(rng.integers(0, len(PEN_TYPES)))]
+                r.update(penalty=1, penalty_team=bad, penalty_type=kind[0], penalty_yards=kind[1])
             drive_plays.append(r)
             out["ftn"].append(f)
             out["part"].append(pt)

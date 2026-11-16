@@ -10,7 +10,7 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-from . import (assets, bracket, clean, context, elo, extras, fantasy, special, tendencies, viz, feeds, health, league, leverage, model, model_cards, notify,
+from . import (assets, bracket, clean, context, elo, extras, fantasy, special, tendencies, viz, viz2, feeds, health, league, leverage, model, model_cards, notify,
                record, share, stats, story, summary, templates_player, templates_team)
 from .text import agree
 from .config import BUTTONDOWN_USERNAME, EMAIL_PER_TEAM, GOATCOUNTER_CODE, MODEL_FIRST_SEASON, SITE_URL
@@ -32,9 +32,20 @@ def _json(o):
     raise TypeError(type(o))
 
 
+def _nan_free(o):
+    """NaN is not valid JSON and breaks the page; write it as null."""
+    if isinstance(o, float):
+        return None if o != o else o
+    if isinstance(o, dict):
+        return {k: _nan_free(v) for k, v in o.items()}
+    if isinstance(o, (list, tuple)):
+        return [_nan_free(v) for v in o]
+    return o
+
+
 def _write(path, obj):
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(obj, default=_json, separators=(",", ":")))
+    path.write_text(json.dumps(_nan_free(obj), default=_json, separators=(",", ":")))
 
 
 def wname(w):
@@ -90,8 +101,10 @@ def kicked_off(g, now):
         return False
 
 
-FIELD_TEAM = {"passchart", "runchart", "drives", "fourthmap"}
-FIELD_PLAYER = {"rcvchart", "pressmap"}
+FIELD_TEAM = {"passchart", "runchart", "drives", "fourthmap", "redzone", "downs", "explosive_map", "wpline", "quarters", "tug",
+              "thirds", "penalties", "splits"}
+FIELD_PLAYER = {"rcvchart", "pressmap", "tree"}
+CARD_CAP = 14  # cards kept per tab: the default view shows 4-6, filters and Top 10 can reach the rest
 
 
 def with_field(cards, n, pool, kinds, cap=10):
@@ -183,6 +196,7 @@ def main():
     SP = special.tables(raw["pbp"], args.season, week)
     TX = tendencies.tables(plays, tpls)
     VZ = viz.tables(plays, raw["pbp"], args.season, week)
+    V2 = viz2.tables(plays, raw["pbp"], args.season, week)
     health.info("visuals", sorted(k for k in VZ if not k.endswith("_lg")))
     snap_t = fantasy.snap_table((hist or {}).get("snaps"), args.season, week)
     if snap_t is not None:
@@ -258,18 +272,21 @@ def main():
                 special.st_card(SP, a_, h_, M, game), special.fg_card(SP, a_, h_, M, game), special.fourth_card(SP, a_, h_, M, game),
                 tendencies.zone_card(TX, a_, h_, M, game), tendencies.lean_card(TX, a_, h_, M, game),
                 viz.pass_card(VZ, a_, h_, M, game), viz.run_card(VZ, a_, h_, M, game), viz.drive_card(VZ, a_, h_, M, game),
-                viz.fourth_map_card(VZ, a_, h_, M, game)]
+                viz.fourth_map_card(VZ, a_, h_, M, game)] + [f(V2, a_, h_, M, game) for f in (
+                    viz2.redzone_card, viz2.downs_card, viz2.explosive_card, viz2.wp_card, viz2.quarters_card, viz2.tug_card,
+                    viz2.third_card, viz2.penalty_card, viz2.splits_card)]
         pool_t = rendered + specials + [c for c in ctxs if c]
-        team_cards, team_n = story.select(pool_t, MIN_TEAM_CARDS, MAX_TEAM_CARDS, (a_, h_))
-        team_cards, team_n = with_field(team_cards, team_n, [c for c in pool_t if c], FIELD_TEAM)
+        team_cards, team_n = story.select(pool_t, MIN_TEAM_CARDS, MAX_TEAM_CARDS, (a_, h_), cap=CARD_CAP)
+        team_cards, team_n = with_field(team_cards, team_n, [c for c in pool_t if c], FIELD_TEAM, CARD_CAP)
         pc = templates_player.Cards(ptabs, pctx, M, tpls, game)
         tpp = {t.id: t for t in tpls}
         extra_p = [viz.receiver_card(VZ, a_, h_, M, game, pctx, pc._name, pc._img),
                    viz.pressure_card(VZ, a_, h_, M, game, pctx, pc._name, pc._img, ptabs.get("qb_ttt"),
-                                     tpp["pressure"].deff if "pressure" in tpp else None)]
+                                     tpp["pressure"].deff if "pressure" in tpp else None),
+                   viz2.tree_card(V2, a_, h_, M, game, pc._name, pc._img)]
         pool_p = pc.all(a_, h_) + [c for c in extra_p if c]
-        player_cards, player_n = templates_player.select(pool_p, MIN_PLAYER_CARDS, MAX_PLAYER_CARDS)
-        player_cards, player_n = with_field(player_cards, player_n, [c for c in pool_p if c], FIELD_PLAYER)
+        player_cards, player_n = templates_player.select(pool_p, MIN_PLAYER_CARDS, MAX_PLAYER_CARDS, cap=CARD_CAP)
+        player_cards, player_n = with_field(player_cards, player_n, [c for c in pool_p if c], FIELD_PLAYER, CARD_CAP)
         fantasy_cards, fantasy_n = fantasy.select(fantasy.Fantasy(ptabs, pctx, M, tpls, game).all(a_, h_))
         keys = {t: story.keys_for(t, cands, specials, M) for t in (a_, h_)}
         heat = []

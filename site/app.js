@@ -740,7 +740,218 @@ function fourthmap(c) {
   });
   return svg;
 }
-const CHARTS = { passchart, runchart, rcvchart, drives, fourthmap, zones, strips, elotrend, pbars, cumline, tline, scatter, pscatter, duel, bars, gaps, splits, trend, pstrip, probbars, waterfall, dist, injuries, units, calib };
+
+/* ---------- second batch of visuals ---------- */
+function relFill(rel, k) { return { fill: rel >= 0 ? RED : GREEN, opacity: Math.min(0.8, 0.1 + Math.abs(rel) * k).toFixed(2) }; }
+function redzone(c) {
+  const svg = newSvg(620), ao = T(c.off).accent, ad = T(c.def).accent;
+  // flat close-up field: goal line at top, the 20 at the bottom
+  const panel = (x0, title, col) => {
+    const w = 400, top = 90, bot = 540, Y = yl => top + (yl / 20) * (bot - top), X = x => x0 + w / 2 + x * w / 2.4;
+    txt(svg, x0 + w / 2, 40, title, { "text-anchor": "middle", "font-size": 20, "font-weight": 900, fill: col, "letter-spacing": ".06em" });
+    el("rect", { x: x0, y: top - 50, width: w, height: 50, fill: col, opacity: 0.18, rx: 6 }, svg);
+    txt(svg, x0 + w / 2, top - 18, "END ZONE", { "text-anchor": "middle", "font-size": 16, "font-weight": 900, fill: col, opacity: 0.9 });
+    el("rect", { x: x0, y: top, width: w, height: bot - top, fill: "#16161A", stroke: "#2A2A30", "stroke-width": 2 }, svg);
+    for (let yl = 5; yl <= 20; yl += 5) { el("line", { x1: x0, x2: x0 + w, y1: Y(yl), y2: Y(yl), stroke: "#2E2E35", "stroke-width": yl % 10 ? 1 : 2 }, svg); txt(svg, x0 - 10, Y(yl) + 6, String(yl), { "text-anchor": "end", "font-size": 16, "font-weight": 800, fill: C.tick }); }
+    return { Y, X, w, top, bot };
+  };
+  const L = panel(60, `${T(c.off).nick} inside the 20`.toUpperCase(), ao);
+  c.dots.forEach(d => {
+    const x = L.X(d.x), y = L.Y(d.y);
+    if (d.p) el("circle", { cx: x, cy: y, r: d.td ? 9 : 6, fill: d.td ? ao : "none", stroke: d.td ? "#F4F4F2" : ao, "stroke-width": d.td ? 2.5 : 2 }, svg);
+    else el("rect", { x: x - 6, y: y - 6, width: 12, height: 12, fill: d.td ? ao : "none", stroke: d.td ? "#F4F4F2" : ao, "stroke-width": d.td ? 2.5 : 2 }, svg);
+  });
+  const R = panel(540, `${T(c.def).nick} D: TD rate allowed`.toUpperCase(), ad);
+  const bands = { "1-5": [0, 5], "6-10": [5, 10], "11-20": [10, 20] };
+  c.cells.forEach(q => {
+    const [a0, a1] = bands[q.band], f = relFill(q.v === null ? 0 : q.v - q.lg, 2.2);
+    el("rect", { x: 542, y: R.Y(a0) + 2, width: R.w - 4, height: R.Y(a1) - R.Y(a0) - 4, ...f }, svg);
+    const cy = (R.Y(a0) + R.Y(a1)) / 2;
+    txt(svg, 540 + R.w / 2, cy + 6, q.v === null ? "–" : Math.round(q.v * 100) + "% TD", { "text-anchor": "middle", "font-size": 26, style: "font-family:var(--num)", "font-weight": 600, fill: "#F4F4F2" });
+    txt(svg, 540 + R.w / 2, cy + 28, `per play inside the ${q.band.split("-")[1]} · avg ${Math.round(q.lg * 100)}% · ${q.n}`, { "text-anchor": "middle", "font-size": 13, "font-weight": 600, fill: "#D0D0D4" });
+  });
+  [["PASS", "circle"], ["RUN", "rect"], ["TOUCHDOWN", "td"]].forEach(([l, k], i) => {
+    const x = 70 + i * 120, y = 590;
+    if (k === "circle") el("circle", { cx: x, cy: y - 5, r: 6, fill: "none", stroke: ao, "stroke-width": 2 }, svg);
+    else if (k === "rect") el("rect", { x: x - 6, y: y - 11, width: 12, height: 12, fill: "none", stroke: ao, "stroke-width": 2 }, svg);
+    else el("circle", { cx: x, cy: y - 5, r: 9, fill: ao, stroke: "#F4F4F2", "stroke-width": 2.5 }, svg);
+    txt(svg, x + 16, y, l, { "font-size": 14, "font-weight": 800, fill: C.tick });
+  });
+  heatKey(svg, 560, 590);
+  return svg;
+}
+function downs(c) {
+  const svg = newSvg(560), dists = ["1-3", "4-7", "8+"], dn = ["1ST", "2ND", "3RD"], dl = ["SHORT (1-3)", "MEDIUM (4-7)", "LONG (8+)"];
+  const grid = (x0, cells, title, col, off) => {
+    const cw = 130, ch = 130, top = 90;
+    txt(svg, x0 + 1.5 * cw + 50, 40, title, { "text-anchor": "middle", "font-size": 20, "font-weight": 900, fill: col, "letter-spacing": ".06em" });
+    dl.forEach((l, j) => txt(svg, x0 + 50 + (j + 0.5) * cw, top - 12, l, { "text-anchor": "middle", "font-size": 13, "font-weight": 900, fill: C.tick }));
+    dn.forEach((l, i) => txt(svg, x0 + 40, top + (i + 0.5) * ch + 6, l, { "text-anchor": "end", "font-size": 16, "font-weight": 900, fill: C.tick }));
+    cells.forEach(q => {
+      const [d, ds] = q.cell.split("|"), i = +d - 1, j = dists.indexOf(ds), x = x0 + 50 + j * cw, y = top + i * ch;
+      const rel = q.sr === null ? 0 : (off ? q.sr - q.lg : q.sr - q.lg), f = relFill(off ? -rel : rel, 3.5);
+      el("rect", { x: x + 3, y: y + 3, width: cw - 6, height: ch - 6, rx: 8, ...(off ? { fill: rel >= 0 ? GREEN : RED, opacity: f.opacity } : f) }, svg);
+      if (q.cell === c.hl) el("rect", { x: x + 3, y: y + 3, width: cw - 6, height: ch - 6, rx: 8, fill: "none", stroke: "#F4F4F2", "stroke-width": 4 }, svg);
+      txt(svg, x + cw / 2, y + ch / 2, q.sr === null ? "–" : Math.round(q.sr * 100) + "%", { "text-anchor": "middle", "font-size": 30, style: "font-family:var(--num)", "font-weight": 600, fill: "#F4F4F2" });
+      txt(svg, x + cw / 2, y + ch / 2 + 24, `avg ${Math.round(q.lg * 100)}%`, { "text-anchor": "middle", "font-size": 13, "font-weight": 600, fill: "#D0D0D4" });
+      if (off && q.pr !== null) txt(svg, x + cw / 2, y + ch / 2 + 42, `${Math.round(q.pr * 100)}% pass`, { "text-anchor": "middle", "font-size": 13, "font-weight": 600, fill: "#BDBDBD" });
+    });
+  };
+  grid(20, c.o, `${T(c.off).nick} offense: success rate`.toUpperCase(), T(c.off).accent, true);
+  grid(510, c.d, `${T(c.def).nick} D: success allowed`.toUpperCase(), T(c.def).accent, false);
+  el("rect", { x: 70, y: 512, width: 18, height: 13, fill: GREEN, opacity: 0.75 }, svg); txt(svg, 94, 524, "GOOD FOR THAT TEAM", { "font-size": 14, "font-weight": 800, fill: C.tick });
+  el("rect", { x: 300, y: 512, width: 18, height: 13, fill: RED, opacity: 0.75 }, svg); txt(svg, 324, 524, "BAD FOR THAT TEAM", { "font-size": 14, "font-weight": 800, fill: C.tick });
+  return svg;
+}
+function explmap(c) {
+  const svg = newSvg(640), ao = T(c.off).accent, ad = T(c.def).accent, x0 = 70, x1 = W - 40, X = v => x0 + (x1 - x0) * v / 100;
+  const panel = (y0, title, col, arr) => {
+    const h = 220, laneY = l => y0 + h / 2 + l * (h / 3.2);
+    txt(svg, x0, y0 - 12, title, { "font-size": 18, "font-weight": 900, fill: col, "letter-spacing": ".05em" });
+    el("rect", { x: x0, y: y0, width: x1 - x0, height: h, fill: "#16161A", rx: 6 }, svg);
+    el("rect", { x: X(100) - 1, y: y0, width: 40, height: h, fill: col, opacity: 0.15 }, svg);
+    for (let v = 10; v < 100; v += 10) el("line", { x1: X(v), x2: X(v), y1: y0, y2: y0 + h, stroke: v === 50 ? "#3A3A42" : "#26262C", "stroke-width": v === 50 ? 2 : 1 }, svg);
+    arr.forEach(a => {
+      const y = laneY(a.l + a.j * 0.5), xs = X(a.s), xe = X(a.e);
+      el("line", { x1: xs, x2: xe - 6, y1: y, y2: y, stroke: col, "stroke-width": a.p ? 3 : 4, opacity: 0.85, "stroke-dasharray": a.p ? null : "2 0" }, svg);
+      el("path", { d: `M${xe},${y}L${xe - 10},${y - 6}L${xe - 10},${y + 6}Z`, fill: a.td ? "#F4F4F2" : col }, svg);
+      el("circle", { cx: xs, cy: y, r: 4, fill: a.p ? col : "#0B0B0C", stroke: col, "stroke-width": 2 }, svg);
+    });
+    return h;
+  };
+  panel(60, `${T(c.off).nick} offense: ${c.a.length} plays of 20+ yards`.toUpperCase(), ao, c.a);
+  panel(345, `${T(c.def).nick} defense: ${c.b.length} allowed`.toUpperCase(), ad, c.b);
+  [[0, "OWN GOAL", "start"], [50, "50", "middle"], [100, "END ZONE", "end"]].forEach(([v, l, an]) => txt(svg, X(v), 590, l, { "text-anchor": an, "font-size": 13, "font-weight": 800, fill: C.tick }));
+  txt(svg, x0, 622, "● PASS (DOT AT THE SNAP)   ○ RUN   WHITE TIP = TOUCHDOWN   DRIVING LEFT TO RIGHT", { "font-size": 13, "font-weight": 800, fill: C.tick });
+  return svg;
+}
+function wpline(c) {
+  const svg = newSvg(650), box = { l: 90, r: W - 40, t: 50, b: 520 }, X = s => box.l + (box.r - box.l) * s / 3600, Y = p => box.b - (box.b - box.t) * p;
+  [0, 0.25, 0.5, 0.75, 1].forEach(p => { el("line", { x1: box.l, x2: box.r, y1: Y(p), y2: Y(p), stroke: p === 0.5 ? "#55555B" : C.grid, "stroke-width": p === 0.5 ? 2 : 1, "stroke-dasharray": p === 0.5 ? "8 6" : null }, svg);
+    txt(svg, box.l - 12, Y(p) + 6, Math.round(p * 100) + "%", { "text-anchor": "end", "font-size": 18, "font-weight": 300, fill: C.tick }); });
+  [900, 1800, 2700].forEach(s => el("line", { x1: X(s), x2: X(s), y1: box.t, y2: box.b, stroke: C.grid }, svg));
+  ["Q1", "Q2", "Q3", "Q4"].forEach((q, i) => txt(svg, X(450 + i * 900), box.b + 30, q, { "text-anchor": "middle", "font-size": 18, "font-weight": 900, fill: C.tick }));
+  const legend = [];
+  c.teams.forEach((tm, k) => tm.games.forEach((g, i) => {
+    const col = T(tm.team).accent, dash = i === tm.games.length - 1 ? null : "8 6";
+    el("polyline", { points: g.pts.map(p => `${X(p[0])},${Y(p[1])}`).join(" "), fill: "none", stroke: col, "stroke-width": i === tm.games.length - 1 ? 4.5 : 3, "stroke-dasharray": dash, opacity: i === tm.games.length - 1 ? 1 : 0.7 }, svg);
+    legend.push([col, dash, `${tm.team} WK ${g.wk} vs ${g.opp}: ${g.won ? "W" : "L"}`]);
+  }));
+  legend.forEach(([col, dash, l], i) => { const x = box.l + (i % 2) * 440, y = 592 + Math.floor(i / 2) * 26;
+    el("line", { x1: x, x2: x + 34, y1: y - 5, y2: y - 5, stroke: col, "stroke-width": 4, "stroke-dasharray": dash }, svg); txt(svg, x + 44, y, l, { "font-size": 14, "font-weight": 800, fill: C.tick }); });
+  return svg;
+}
+function quarters(c) {
+  const svg = newSvg(560), mid = 290, sc = 18, all = c.rows.flatMap(r => r.for.concat(r.against)), mx = Math.max(7, ...all);
+  const k = 220 / mx;
+  el("line", { x1: 60, x2: W - 30, y1: mid, y2: mid, stroke: "#55555B", "stroke-width": 2 }, svg);
+  txt(svg, 50, mid - 200, "SCORED", { "text-anchor": "end", "font-size": 14, "font-weight": 900, fill: C.tick, transform: `rotate(-90 50 ${mid - 200})` });
+  txt(svg, 50, mid + 200, "ALLOWED", { "text-anchor": "end", "font-size": 14, "font-weight": 900, fill: C.tick, transform: `rotate(-90 50 ${mid + 120})` });
+  const gw = (W - 120) / 4, bw = gw * 0.3;
+  [0, 1, 2, 3].forEach(q => {
+    const gx = 80 + q * gw;
+    if (q === c.hl) el("rect", { x: gx - 8, y: 40, width: gw - 14, height: 480, rx: 10, fill: "#F4F4F2", opacity: 0.05 }, svg);
+    txt(svg, gx + gw / 2 - 10, 540, ["1ST", "2ND", "3RD", "4TH"][q] + " QTR", { "text-anchor": "middle", "font-size": 16, "font-weight": 900, fill: C.title });
+    c.rows.forEach((r, i) => {
+      const col = T(r.team).accent, x = gx + 20 + i * (bw + 12);
+      el("rect", { x, y: mid - r.for[q] * k, width: bw, height: r.for[q] * k, fill: col, rx: 4 }, svg);
+      el("rect", { x, y: mid, width: bw, height: r.against[q] * k, fill: col, opacity: 0.45, rx: 4 }, svg);
+      txt(svg, x + bw / 2, mid - r.for[q] * k - 10, r.for[q].toFixed(1), { "text-anchor": "middle", "font-size": 18, style: "font-family:var(--num)", "font-weight": 600, fill: col });
+      txt(svg, x + bw / 2, mid + r.against[q] * k + 24, r.against[q].toFixed(1), { "text-anchor": "middle", "font-size": 18, style: "font-family:var(--num)", "font-weight": 600, fill: col, opacity: 0.85 });
+      if (q === 0) txt(svg, x + bw / 2, 30, r.team, { "text-anchor": "middle", "font-size": 14, "font-weight": 900, fill: col });
+    });
+  });
+  return svg;
+}
+function tree(c) {
+  const svg = newSvg(620), box = { t: 60, b: 540 }, all = c.teams.flatMap(t => t.players.map(p => p.adot)), mx = Math.max(15, ...all) + 2, mn = Math.min(0, ...all) - 1;
+  const Y = v => box.b - (box.b - box.t) * (v - mn) / (mx - mn);
+  c.teams.forEach((tm, k) => {
+    const x0 = k ? 540 : 80, w = 400, col = T(tm.team).accent;
+    txt(svg, x0 + w / 2, 30, `${T(tm.team).nick} targets`.toUpperCase(), { "text-anchor": "middle", "font-size": 18, "font-weight": 900, fill: col });
+    el("line", { x1: x0 + w / 2, x2: x0 + w / 2, y1: Y(mn), y2: Y(mx), stroke: "#2E2E35", "stroke-width": 3 }, svg);
+    tm.players.forEach((p, i) => {
+      const x = x0 + (i + 0.5) * w / tm.players.length, y = Y(p.adot), r = 12 + p.share * 80, below = i % 2 === 0;
+      el("line", { x1: x0 + w / 2, y1: Y(0), x2: x, y2: y, stroke: col, "stroke-width": 2, opacity: 0.4 }, svg);
+      el("circle", { cx: x, cy: y, r, fill: p.epa >= 0 ? col : RED, opacity: 0.25 + Math.min(0.6, Math.abs(p.epa) * 1.5), stroke: col, "stroke-width": 2.5 }, svg);
+      txt(svg, x, y + 6, Math.round(p.share * 100) + "%", { "text-anchor": "middle", "font-size": 18, style: "font-family:var(--num)", "font-weight": 600, fill: "#F4F4F2" });
+      const ly = below ? y + r + 20 : y - r - 26;
+      txt(svg, x, ly, p.short, { "text-anchor": "middle", "font-size": 14, "font-weight": 900, fill: C.title });
+      txt(svg, x, ly + 16, `${p.adot.toFixed(1)} yds · ${fmt(p.epa, "epa")}`, { "text-anchor": "middle", "font-size": 12, "font-weight": 600, fill: C.tick });
+    });
+  });
+  [0, 10, 20].filter(v => v >= mn && v <= mx).forEach(v => txt(svg, 40, Y(v) + 5, v ? `+${v}` : "LOS", { "text-anchor": "middle", "font-size": 14, "font-weight": 800, fill: v ? C.tick : "#5B8DEF" }));
+  txt(svg, W / 2, 600, "HEIGHT = AVERAGE DEPTH OF TARGET · SIZE = SHARE OF TARGETS · RED = NEGATIVE EPA PER TARGET", { "text-anchor": "middle", "font-size": 13, "font-weight": 800, fill: C.tick });
+  return svg;
+}
+function tug(c) {
+  const svg = newSvg(420), x0 = 70, x1 = W - 40, X = v => x0 + (x1 - x0) * v / 100;
+  el("rect", { x: x0, y: 70, width: x1 - x0, height: 250, fill: "#16161A", rx: 8 }, svg);
+  for (let v = 10; v < 100; v += 10) el("line", { x1: X(v), x2: X(v), y1: 70, y2: 320, stroke: v === 50 ? "#3A3A42" : "#26262C", "stroke-width": v === 50 ? 2 : 1 }, svg);
+  dashed(svg, X(c.lg), 60, X(c.lg), 330); txt(svg, X(c.lg), 52, `LEAGUE AVG: OWN ${Math.round(c.lg)}`, { "text-anchor": "middle", "font-size": 13, "font-weight": 800, fill: C.quad });
+  c.rows.forEach((r, i) => {
+    const y = 140 + i * 110, col = T(r.team).accent;
+    el("line", { x1: X(Math.min(r.own, r.opp)), x2: X(Math.max(r.own, r.opp)), y1: y, y2: y, stroke: col, "stroke-width": 6, opacity: 0.5 }, svg);
+    el("circle", { cx: X(r.own), cy: y, r: 14, fill: col }, svg);
+    el("circle", { cx: X(r.opp), cy: y, r: 12, fill: "#0B0B0C", stroke: col, "stroke-width": 3 }, svg);
+    txt(svg, X(r.own), y - 24, `${r.team} START: OWN ${Math.round(r.own)}`, { "text-anchor": "middle", "font-size": 15, "font-weight": 900, fill: col });
+    txt(svg, X(r.opp), y + 38, `OPPONENTS: ${Math.round(r.opp)}`, { "text-anchor": "middle", "font-size": 14, "font-weight": 800, fill: C.tick });
+  });
+  [[0, "OWN GOAL", "start"], [50, "50", "middle"], [100, "END ZONE", "end"]].forEach(([v, l, an]) => txt(svg, X(v), 350, l, { "text-anchor": an, "font-size": 13, "font-weight": 800, fill: C.tick }));
+  txt(svg, x0, 395, "● THE TEAM'S OWN DRIVES   ○ ITS OPPONENTS' DRIVES   (BOTH MEASURED FROM THE DRIVING TEAM'S GOAL LINE)", { "font-size": 13, "font-weight": 800, fill: C.tick });
+  return svg;
+}
+function thirds(c) {
+  const svg = newSvg(520), x0 = 90, x1 = W - 40, X = v => x0 + (x1 - x0) * (v - 0.5) / 15;
+  const row = (y, arr, col, title) => {
+    txt(svg, x0, y - 80, title, { "font-size": 18, "font-weight": 900, fill: col, "letter-spacing": ".05em" });
+    el("rect", { x: x0, y: y - 60, width: x1 - x0, height: 120, fill: "#16161A", rx: 8 }, svg);
+    arr.forEach(d => { const x = X(d.x) + d.j * 22, yy = y + (d.c ? -25 : 25) + d.j * 30;
+      if (d.c) el("circle", { cx: x, cy: yy, r: 6, fill: col }, svg); else el("circle", { cx: x, cy: yy, r: 5.5, fill: "none", stroke: "#8A8A90", "stroke-width": 1.8 }, svg); });
+    txt(svg, x0 - 10, y - 20, "MADE", { "text-anchor": "end", "font-size": 12, "font-weight": 900, fill: C.tick });
+    txt(svg, x0 - 10, y + 30, "FAILED", { "text-anchor": "end", "font-size": 12, "font-weight": 900, fill: C.tick });
+  };
+  const rate = a => a.length ? Math.round(100 * a.filter(d => d.c).length / a.length) : 0;
+  row(150, c.a, T(c.off).accent, `${T(c.off).nick} offense on 3rd down: ${rate(c.a)}% converted`.toUpperCase());
+  row(370, c.b, T(c.def).accent, `${T(c.def).nick} defense on 3rd down: ${rate(c.b)}% allowed`.toUpperCase());
+  for (let v = 1; v <= 15; v += 1) if (v === 1 || v % 2 === 1 || v === 15) txt(svg, X(v), 470, v === 15 ? "15+" : String(v), { "text-anchor": "middle", "font-size": 14, "font-weight": 800, fill: C.tick });
+  txt(svg, (x0 + x1) / 2, 500, "YARDS TO GO", { "text-anchor": "middle", "font-size": 15, "font-weight": 900, fill: C.title });
+  return svg;
+}
+function penalties(c) {
+  const svg = newSvg(480), mx = Math.max(0.5, ...c.rows.flatMap(r => r.types.map(t => t.v)));
+  c.rows.forEach((r, k) => {
+    const x0 = k ? 520 : 40, w = 440, col = T(r.team).accent;
+    txt(svg, x0, 40, `${T(r.team).nick}: ${r.per_game.toFixed(1)} flags per game`.toUpperCase(), { "font-size": 18, "font-weight": 900, fill: col });
+    r.types.forEach((t, i) => {
+      const y = 80 + i * 74, bw = (w - 60) * t.v / mx;
+      txt(svg, x0, y + 16, t.k.toUpperCase(), { "font-size": 14, "font-weight": 800, fill: C.title });
+      el("rect", { x: x0, y: y + 26, width: Math.max(4, bw), height: 26, rx: 4, fill: col, opacity: 0.85 }, svg);
+      txt(svg, x0 + bw + 10, y + 46, t.v.toFixed(2), { "font-size": 18, style: "font-family:var(--num)", "font-weight": 600, fill: col });
+    });
+  });
+  txt(svg, 40, 465, "PER GAME, TOP 5 PENALTY TYPES FOR EACH TEAM", { "font-size": 13, "font-weight": 800, fill: C.tick });
+  return svg;
+}
+function splits(c) {
+  const svg = newSvg(480), vals = c.rows.flatMap(r => [r.with, r.without]), lo = Math.min(-0.1, ...vals), hi = Math.max(0.1, ...vals);
+  const X = lin(lo - 0.05, hi + 0.05, 330, W - 60);
+  el("line", { x1: X(0), x2: X(0), y1: 50, y2: 420, stroke: "#55555B", "stroke-width": 2 }, svg);
+  txt(svg, X(0), 40, "0 EPA", { "text-anchor": "middle", "font-size": 14, "font-weight": 800, fill: C.tick });
+  c.rows.forEach((r, i) => {
+    const y = 90 + i * 180, col = T(r.team).accent;
+    txt(svg, 40, y + 4, r.label, { "font-size": 17, "font-weight": 900, fill: col });
+    [["WITH " + c.word, r.with, 1], ["WITHOUT", r.without, 0.45]].forEach(([l, v, op], j) => {
+      const yy = y + 30 + j * 56;
+      txt(svg, 40, yy + 26, l, { "font-size": 14, "font-weight": 800, fill: C.title });
+      el("rect", { x: Math.min(X(0), X(v)), y: yy, width: Math.max(3, Math.abs(X(v) - X(0))), height: 38, rx: 4, fill: col, opacity: op }, svg);
+      txt(svg, v >= 0 ? X(v) + 10 : X(v) - 10, yy + 28, fmt(v, "epa"), { "text-anchor": v >= 0 ? "start" : "end", "font-size": 22, style: "font-family:var(--num)", "font-weight": 600, fill: col });
+    });
+  });
+  txt(svg, 40, 460, "EPA PER DROPBACK · DEFENSE ROWS = WHAT IT ALLOWS", { "font-size": 13, "font-weight": 800, fill: C.tick });
+  return svg;
+}
+const CHARTS = { redzone, downs, explmap, wpline, quarters, tree, tug, thirds, penalties, splits, passchart, runchart, rcvchart, drives, fourthmap, zones, strips, elotrend, pbars, cumline, tline, scatter, pscatter, duel, bars, gaps, splits, trend, pstrip, probbars, waterfall, dist, injuries, units, calib };
 
 
 /* ---------- card ---------- */
@@ -892,6 +1103,19 @@ function evenN(target, avail) {
   if (k % 2 && k >= 3) k = avail > k ? k + 1 : k >= 5 ? k - 1 : k;
   return k;
 }
+const CAT_TEAM = [["FIELD CHARTS", ["passchart", "runchart", "drives", "fourthmap", "redzone", "downs", "explosive_map", "wpline", "quarters", "tug", "thirds", "penalties", "splits"]],
+  ["PASSING", ["pass_epa", "early_down", "depth", "yacoe", "play_action", "man_zone", "shell", "zone", "explosive"]],
+  ["RUSHING", ["rush_epa", "stuff", "short_yd", "gap", "box"]],
+  ["PRESSURE", ["pressure", "four_man", "blitz"]],
+  ["TENDENCIES", ["lean", "motion", "tackling", "red_zone"]],
+  ["SPECIAL TEAMS & 4TH", ["st", "fg", "fourth"]],
+  ["FORM & LUCK", ["form", "luck"]]];
+const CAT_PLAYER = [["FIELD CHARTS", ["rcvchart", "pressmap", "tree"]], ["QUARTERBACKS", ["qb_"]], ["RUSHING", ["rb"]], ["RECEIVING", ["wr_", "rec_"]]];
+function catOf(id, tab) {
+  const k = id.split(":")[0], list = tab === "players" ? CAT_PLAYER : CAT_TEAM;
+  for (const [name, keys] of list) if (keys.some(x => x.endsWith("_") ? k.startsWith(x) : k === x || (x === "rb" && k.startsWith("rb")))) return name;
+  return "OTHER";
+}
 async function matchup(id, tab, focus) {
   const G = S.games, app = $("#app");
   showLoading("Loading matchup");
@@ -919,6 +1143,7 @@ async function matchup(id, tab, focus) {
         <b>${esc(k.phrase)}<em class="${k.favorable ? "up" : "dn"}">${k.favorable ? "EDGE" : "WATCH"}</em></b><p>${esc(k.detail)}</p>${keyRes(rc, t, i)}</div></li>`).join("")}</ol></div>`).join("")}</section>
     <div class="tabs"><div role="tablist"><button role="tab" data-tab="team">TEAM</button><button role="tab" data-tab="players">PLAYERS</button>${(g.fantasy_cards || []).length ? '<button role="tab" data-tab="fantasy">FANTASY</button>' : ""}${(g.model_cards || []).length ? '<button role="tab" data-tab="model">MODEL</button>' : ""}</div>
       <label class="topn">SHOW <select aria-label="How many cards to show"><option value="auto">Top picks</option><option value="10">Top 10</option></select></label></div>
+    <div class="catbar" role="group" aria-label="Card types"></div>
     <div class="cards"></div>`;
   if (g.mode && g.mode !== "live") app.insertAdjacentHTML("afterbegin", `<p class="proj-note">PROJECTED${g.round ? " " + esc(g.round.toUpperCase()) : ""} MATCHUP: built from data through week ${g.through_week}. The model uses today's ratings and starters with no injury report. The summary is rule-based.</p>`);
   const sb = $(".share-btn", app);
@@ -926,6 +1151,7 @@ async function matchup(id, tab, focus) {
   const topSel = $(".topn select", app);
   try { topSel.value = localStorage.getItem("topn") || "auto"; } catch (e) { /* storage blocked */ }
   let cur = "team";
+  const filt = {};
   const show = t => {
     cur = t;
     app.querySelectorAll(".tabs button").forEach(b => b.setAttribute("aria-selected", String(b.dataset.tab === t)));
@@ -933,7 +1159,25 @@ async function matchup(id, tab, focus) {
     $(".topn", app).style.visibility = t === "model" || t === "fantasy" ? "hidden" : "visible";
     const all = t === "players" ? g.player_cards : t === "model" ? g.model_cards : t === "fantasy" ? g.fantasy_cards : g.team_cards;
     const n = t === "model" || t === "fantasy" ? evenN(all.length, all.length) : topSel.value === "10" ? 10 : evenN((t === "players" ? g.player_n : g.team_n) ?? all.length, all.length);
-    const list = all.slice(0, n);
+    const rec = all.slice(0, n);
+    // Category filter: preset = the categories in the ranked default view; turning a category on adds all its cards.
+    const F = (filt[t] = filt[t] || { add: new Set(), del: new Set() });
+    const cats = [...new Set(all.map(c => catOf(c.id, t)))];
+    const active = new Set([...rec.map(c => catOf(c.id, t)), ...F.add].filter(k => !F.del.has(k)));
+    const list = all.filter(c => active.has(catOf(c.id, t)) && (rec.includes(c) || F.add.has(catOf(c.id, t))));
+    const bar = $(".catbar", app);
+    bar.hidden = t === "model" || t === "fantasy" || cats.length < 2;
+    const hidden = k => all.filter(c => catOf(c.id, t) === k && !list.includes(c)).length;
+    bar.innerHTML = `<span>CARD TYPES</span>${cats.map(k => { const hd = active.has(k) ? hidden(k) : 0;
+      return `<button type="button" class="cat ${active.has(k) ? "on" : ""}" data-cat="${k}" aria-pressed="${active.has(k)}" title="${active.has(k) ? (hd ? "Show all " + k.toLowerCase() : "Hide " + k.toLowerCase()) : "Show " + k.toLowerCase()}">${k}${hd ? ` <i>+${hd}</i>` : ""}</button>`; }).join("")}${F.add.size || F.del.size ? '<button type="button" class="cat reset">RECOMMENDED</button>' : ""}`;
+    bar.querySelectorAll(".cat[data-cat]").forEach(b => b.onclick = () => {
+      // off -> show all of that type; on with hidden cards -> show the rest; fully shown -> hide
+      const k = b.dataset.cat;
+      if (!active.has(k) || hidden(k)) { F.add.add(k); F.del.delete(k); } else { F.del.add(k); F.add.delete(k); }
+      show(t);
+    });
+    const rs = bar.querySelector(".reset");
+    if (rs) rs.onclick = () => { filt[t] = null; show(t); };
     if (t === "model" && g.model) box.insertAdjacentHTML("beforeend", `<p class="summary model-sum"><b>OUR NUMBER VS. THE MARKET</b>${esc(g.model.summary)}<span>A different lens on the data, not betting advice.</span></p>`);
     if (t === "fantasy") box.insertAdjacentHTML("beforeend", `<p class="summary model-sum"><b>FANTASY LENS</b>Who is scoring more or less than their usage predicts, PPR scoring. Expected points come from each player's targets, carries, depth and field position.<span>For fun, not betting advice.</span></p>`);
     if (!list.length) box.innerHTML = '<p class="empty">No cards cleared the sample-size bar for this matchup.</p>';

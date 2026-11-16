@@ -378,4 +378,12 @@ main { flex: 1; width: 100%; max-width: 1520px; margin: 0 auto; padding: 24px 16
 @media (max-width: 760px) { .bracket { grid-template-columns: 1fr; } .bcol.sb { max-width: none; } }
 .seed-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 460px), 1fr)); gap: 14px; }
 .tbl.seeds td:not(.tm), .tbl.seeds th:not(:nth-child(2)) { text-align: center; }
+.catbar { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin: 0 0 14px; }
+.catbar > span { font-size: 10px; font-weight: 900; letter-spacing: .16em; color: var(--dim); margin-right: 4px; }
+.catbar .cat { background: transparent; border: 1px solid var(--line); color: var(--mute); border-radius: 999px; padding: 5px 11px;
+  font: 800 10px var(--sans); letter-spacing: .1em; cursor: pointer; transition: all .15s ease; }
+.catbar .cat.on { border-color: var(--brand); color: var(--ink); background: rgba(251,79,20,.14); }
+.catbar .cat:hover { border-color: var(--brand); }
+.catbar .cat i { font-style: normal; color: var(--brand); }
+.catbar .cat.reset { border-style: dashed; color: var(--brand); }
 @media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }
