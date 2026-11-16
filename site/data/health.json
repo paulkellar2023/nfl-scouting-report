@@ -1,7 +1,9 @@
 {
- "status": "ok",
- "checked": "2026-11-16T00:22Z",
- "warnings": [],
+ "status": "warn",
+ "checked": "2026-11-16T00:41Z",
+ "warnings": [
+  "LLM summary fell back to rule-based for 2 games (search the log for 'summary:')"
+ ],
  "errors": [],
  "info": {
   "week": 10,
@@ -20,6 +22,8 @@
   "extras": [
    "box_def",
    "box_off",
+   "ff",
+   "ff_def",
    "press_def",
    "press_off",
    "qb_aggr",
@@ -27,6 +31,7 @@
    "rb_ryoe",
    "tackle_def",
    "tackle_off",
+   "wopr",
    "wr_cush",
    "wr_sep"
   ],
@@ -44,14 +49,22 @@
   "projected_games": 122,
   "summaries": {
    "llm": 0,
-   "rule": 0,
+   "rule": 2,
    "kept": 12,
-   "cached": 2
+   "cached": 0
+  },
+  "luck": {
+   "turnover_adjusted": true,
+   "fumbles_in_data": true,
+   "cv_ll": {
+    "raw": 0.6322,
+    "adjusted": 0.6314
+   }
   },
   "model": {
    "ran": true,
    "alpha": 0.1,
-   "sigma": 12.0,
+   "sigma": 11.75,
    "hfa": 1.66,
    "n_train": 2697
   }
