@@ -25,12 +25,24 @@ NEED = {
     "pfr_rush": ["team", "week", "rushing_broken_tackles"],
     "pfr_rec": ["team", "week", "receiving_broken_tackles"],
     "pfr_def": ["team", "week", "def_missed_tackles"],
+    "ffo": ["player_id", "team", "week", "position", "total_fantasy_points", "total_fantasy_points_exp"],
+    "pstats": ["player_id", "team", "week", "wopr", "target_share", "air_yards_share"],
+    "qbr": ["team", "week", "name_display", "qbr_total", "qb_plays"],
 }
+RENAME = {"ffo": {"posteam": "team", "full_name": "player_display_name"},
+          "pstats": {"recent_team": "team"},
+          "qbr": {"game_week": "week", "team_abb": "team"}}
+SRC_FF = "NFLVERSE EXPECTED FANTASY POINTS (FFOPPORTUNITY)"
+SRC_PS = "NFLVERSE WEEKLY PLAYER STATS"
+SRC_QBR = "ESPN QBR VIA NFLVERSE"
 
 
 def _clean(df, name, season, week):
     if df is None or not len(df):
         return None
+    if type(df).__module__.startswith("polars"):
+        df = df.to_pandas()
+    df = df.rename(columns={k: v for k, v in RENAME.get(name, {}).items() if k in df.columns and v not in df.columns})
     miss = [c for c in NEED[name] if c not in df.columns]
     if miss:
         health.warn(f"{name}: missing columns {miss}, cards that need it are skipped")
@@ -40,7 +52,7 @@ def _clean(df, name, season, week):
         d = d[pd.to_numeric(d["season"], errors="coerce") == season]
     for c in ("season_type", "game_type"):
         if c in d.columns:
-            d = d[d[c].astype(str).str.upper() == "REG"]
+            d = d[d[c].astype(str).str.upper().str.startswith("REG")]
     d["week"] = pd.to_numeric(d["week"], errors="coerce")
     d = d[(d["week"] > 0) & (d["week"] < week)]
     tc = "team_abbr" if "team_abbr" in d.columns else "team"
@@ -121,6 +133,50 @@ def tables(x, plays, sched, season, week):
         opp_tch = pd.Series({(opp[k], k[1]): v for k, v in tch.items() if k in opp})
         dfn, _ = _team_rates(mt, opp_tch, opp)
         out["tackle_off"], out["tackle_def"] = off, dfn
+    if d["ffo"] is not None:
+        f = d["ffo"].copy()
+        for c in ("total_fantasy_points", "total_fantasy_points_exp", "rec_touchdown", "rec_touchdown_exp",
+                  "rush_touchdown", "rush_touchdown_exp"):
+            if c in f.columns:
+                f[c] = pd.to_numeric(f[c], errors="coerce").fillna(0)
+        f["td"] = sum(f[c] for c in ("rec_touchdown", "rush_touchdown") if c in f.columns) if "rec_touchdown" in f.columns else np.nan
+        f["xtd"] = sum(f[c] for c in ("rec_touchdown_exp", "rush_touchdown_exp") if c in f.columns) if "rec_touchdown_exp" in f.columns else np.nan
+        f = f[f["position"].isin(["QB", "RB", "WR", "TE"])]
+        last = f.sort_values("week").drop_duplicates("player_id", keep="last").set_index("player_id")
+        g = f.groupby("player_id").agg(g=("week", "nunique"), fp=("total_fantasy_points", "sum"),
+                                         xfp=("total_fantasy_points_exp", "sum"), td=("td", "sum"), xtd=("xtd", "sum"))
+        g = g[g["g"] >= 3]
+        g["fp_g"], g["xfp_g"] = g["fp"] / g["g"], g["xfp"] / g["g"]
+        g["fpoe_g"] = g["fp_g"] - g["xfp_g"]
+        g["pos"], g["team"] = last["position"].reindex(g.index), last["team"].reindex(g.index)
+        if "player_display_name" in last.columns:
+            names.update({k: v for k, v in last["player_display_name"].items() if isinstance(v, str)})
+        teams.update(last["team"].to_dict())
+        out["ff"] = g
+        f["opp"] = [opp.get((t, w)) for t, w in zip(f["team"], f["week"])]
+        dw = f[f["opp"].notna()].groupby(["opp", "position", "week"])[["total_fantasy_points", "total_fantasy_points_exp"]].sum()
+        out["ff_def"] = dw.groupby(level=[0, 1]).mean().rename(columns={"total_fantasy_points": "fp_g", "total_fantasy_points_exp": "xfp_g"})
+    if d["pstats"] is not None:
+        p_ = d["pstats"].copy()
+        for c in ("wopr", "target_share", "air_yards_share"):
+            p_[c] = pd.to_numeric(p_[c], errors="coerce")
+        p_ = p_[p_["wopr"].notna()]
+        g = p_.groupby("player_id").agg(n=("week", "nunique"), value=("wopr", "mean"), ts=("target_share", "mean"),
+                                          ash=("air_yards_share", "mean"), team=("team", "last"))
+        g = g[g["n"] >= 4]
+        g["value_s"] = g["value"]
+        teams.update({k: v for k, v in g["team"].items() if k not in teams})
+        out["wopr"] = g
+    if d["qbr"] is not None:
+        q = d["qbr"].copy()
+        q["qbr_total"], q["qb_plays"] = pd.to_numeric(q["qbr_total"], errors="coerce"), pd.to_numeric(q["qb_plays"], errors="coerce")
+        q = q[q["qbr_total"].notna() & (q["qb_plays"] > 0)]
+        q["wv"] = q["qbr_total"] * q["qb_plays"]
+        g = q.groupby(["name_display", "team"]).agg(wv=("wv", "sum"), n=("qb_plays", "sum")).reset_index()
+        g = g[g["n"] >= 100]
+        g["value"] = g["wv"] / g["n"]
+        g["value_s"] = g["value"]
+        out["qbr"] = g.set_index("name_display")
     got = sorted(k for k in out)
     log.info("extras: %s", got)
     health.info("extras", got)

@@ -127,7 +127,7 @@ def _sim_game(rng, g, P, PL, inj, out):
                  "half_seconds_remaining": clock - 1800 if clock > 1800 else clock,
                  "score_differential": diff, "wp": wp, "xpass": xpass, "fixed_drive": drive_no,
                  "pass": 0, "qb_dropback": 0, "qb_scramble": 0, "sack": 0, "qb_hit": 0,
-                 "pass_attempt": 0, "complete_pass": 0, "interception": 0, "fumble_lost": 0,
+                 "pass_attempt": 0, "complete_pass": 0, "interception": 0, "fumble_lost": 0, "fumble": 0,
                  "touchdown": 0, "air_yards": np.nan, "yards_after_catch": np.nan,
                  "xyac_mean_yardage": np.nan, "cpoe": np.nan, "run_gap": None, "run_location": None,
                  "pass_location": None, "passer_player_id": None, "passer_player_name": None,
@@ -205,9 +205,12 @@ def _sim_game(rng, g, P, PL, inj, out):
                     yards = int(round(max(1.0, rng.gamma(2.0, max(mu, 1.5) / 2.0))))
                 r.update({"play_type": "run", "run_location": loc, "run_gap": gap, "rusher_player_id": rb,
                           "rusher_player_name": PL[rb]["name"], "rushing_yards": yards})
-                if rng.random() < 0.008:
-                    r["fumble_lost"] = 1
+                u = rng.random()
+                if u < 0.008:
+                    r["fumble_lost"], r["fumble"] = 1, 1
                     turnover = True
+                elif u < 0.016:
+                    r["fumble"] = 1
             yards = min(yards, yl)
             r["yards_gained"] = yards
             new_yl = yl - yards
@@ -368,5 +371,44 @@ def extras(pbp, season, seed=11):
         pf_r.append({"season": season, "game_type": "REG", "week": w, "team": t, "rushing_broken_tackles": b1})
         pf_c.append({"season": season, "game_type": "REG", "week": w, "team": t, "receiving_broken_tackles": b2})
         pf_d.append({"season": season, "game_type": "REG", "week": w, "team": de, "def_missed_tackles": b1 + b2 + int(rng.integers(0, 3))})
+    # expected fantasy points, weekly player stats, QBR
+    ff, ps, qb = [], [], []
+    rb_ids = set(ru["rusher_player_id"])
+    for (t, w), g in d.groupby(["posteam", "week"]):
+        tt = int(g["receiver_player_id"].notna().sum()) or 1
+        ta = float(g.loc[g["receiver_player_id"].notna(), "air_yards"].clip(lower=0).sum()) or 1.0
+        pts = {}
+        for _, r in g.iterrows():
+            td = 6 * int(r["touchdown"] == 1)
+            if pd.notna(r["passer_player_id"]):
+                k = (r["passer_player_id"], r["passer_player_name"], "QB")
+                pts.setdefault(k, [0.0, 0.0])
+                pts[k][0] += (0.04 * r["yards_gained"] if r["complete_pass"] == 1 else 0) + (4 if td and r["complete_pass"] == 1 else 0) - 2 * (r["interception"] == 1)
+            if pd.notna(r["rusher_player_id"]) and r["qb_dropback"] != 1:
+                k = (r["rusher_player_id"], r["rusher_player_name"], "RB")
+                pts.setdefault(k, [0.0, 0.0])
+                pts[k][0] += 0.1 * (r["yards_gained"] or 0) + td
+                pts[k][1] += td / 6
+            if pd.notna(r["receiver_player_id"]) and r["complete_pass"] == 1:
+                pos = "RB" if r["receiver_player_id"] in rb_ids else ("TE" if sum(map(ord, str(r["receiver_player_id"]))) % 4 == 0 else "WR")
+                k = (r["receiver_player_id"], r["receiver_player_name"], pos)
+                pts.setdefault(k, [0.0, 0.0])
+                pts[k][0] += 1 + 0.1 * (r["yards_gained"] or 0) + td
+                pts[k][1] += td / 6
+        for (pid, nm, pos), (fp, tds) in pts.items():
+            x = max(0.0, fp - pe(pid + "f", 0, 2.0) + rng.normal(0, 3))
+            ff.append({"season": season, "week": w, "player_id": pid, "full_name": nm, "posteam": t, "position": pos,
+                       "total_fantasy_points": round(fp, 2), "total_fantasy_points_exp": round(x, 2),
+                       "rec_touchdown": tds if pos != "QB" else 0, "rec_touchdown_exp": max(0.0, tds * 0.55 + rng.normal(0.25, 0.15)) if pos != "QB" else 0,
+                       "rush_touchdown": 0, "rush_touchdown_exp": 0})
+        for pid, gg in g[g["receiver_player_id"].notna()].groupby("receiver_player_id"):
+            tsh = len(gg) / tt
+            ash = float(gg["air_yards"].clip(lower=0).sum()) / ta
+            ps.append({"season": season, "season_type": "REG", "week": w, "player_id": pid, "recent_team": t,
+                       "target_share": tsh, "air_yards_share": ash, "wopr": 1.5 * tsh + 0.7 * ash})
+        for (pid, nm), gg in g[(g["qb_dropback"] == 1) & g["passer_player_id"].notna()].groupby(["passer_player_id", "passer_player_name"]):
+            qb.append({"season": season, "season_type": "Regular", "game_week": w, "team_abb": t, "name_display": nm,
+                       "qbr_total": float(np.clip(50 + 120 * gg["epa"].mean() + rng.normal(0, 8), 1, 99)), "qb_plays": len(gg)})
     return {"ngs_pass": pd.DataFrame(ng_p), "ngs_rush": pd.DataFrame(ng_r), "ngs_rec": pd.DataFrame(ng_c),
-            "pfr_pass": pd.DataFrame(pf_p), "pfr_rush": pd.DataFrame(pf_r), "pfr_rec": pd.DataFrame(pf_c), "pfr_def": pd.DataFrame(pf_d)}
+            "pfr_pass": pd.DataFrame(pf_p), "pfr_rush": pd.DataFrame(pf_r), "pfr_rec": pd.DataFrame(pf_c), "pfr_def": pd.DataFrame(pf_d),
+            "ffo": pd.DataFrame(ff), "pstats": pd.DataFrame(ps), "qbr": pd.DataFrame(qb)}

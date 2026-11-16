@@ -30,7 +30,7 @@
   </nav>
 
   <section id="data"><h2>Data</h2>
-    <p>Play-by-play, schedules and betting lines, rosters, injury reports, snap counts and FTN charting (play action, motion, blitzers, pass rushers, interception-worthy throws), all from <a href="https://github.com/nflverse">nflverse</a> through the <code>nflreadpy</code> package. Also from nflverse: NFL Next Gen Stats (time to throw, tight-window throws, rush yards over expected, separation and cushion, stacked boxes) and Pro Football Reference charting (pressures, broken and missed tackles). The site rebuilds Thursday morning (full report and the Thursday line), then Saturday and Sunday morning (newer injury statuses for the model). Once a game kicks off, its report is frozen.</p>
+    <p>Play-by-play, schedules and betting lines, rosters, injury reports, snap counts and FTN charting (play action, motion, blitzers, pass rushers, interception-worthy throws), all from <a href="https://github.com/nflverse">nflverse</a> through the <code>nflreadpy</code> package. Also from nflverse: NFL Next Gen Stats (time to throw, tight-window throws, rush yards over expected, separation and cushion, stacked boxes) and Pro Football Reference charting (pressures, broken and missed tackles), expected fantasy points and weekly player stats from nflverse, and ESPN QBR. The site rebuilds Thursday morning (full report and the Thursday line), then Saturday and Sunday morning (newer injury statuses for the model). Once a game kicks off, its report is frozen.</p>
   </section>
 
   <section id="cleaning"><h2>Cleaning</h2>
@@ -74,6 +74,15 @@
     <p>It is a different lens on the data, not betting advice. The market usually beats it.</p>
   </section>
 
+  <section id="luck"><h2>Luck adjustments in the model</h2>
+    <ul>
+      <li><b>Record luck does not enter the model.</b> It rates teams on play-by-play efficiency, not wins or points, so close-game luck (the LUCK column on the league table) never moves its odds. Playoff seeds still use real records, because that is how the NFL seeds.</li>
+      <li><b>Fumble-recovery luck:</b> who falls on a loose ball is close to a coin flip. A second version of the ratings gives every fumble play the season's average result for a fumble (pass or run) instead of what happened. Each build fits both versions and keeps the one with the lower leave-one-season-out log loss, so this is only used when it predicts better.</li>
+      <li><b>Injury luck:</b> "Injuries behind ratings" is the recency-weighted injury load (players listed Out, Doubtful or Questionable, weighted by snap share) each team carried in the games its ratings come from, home minus away. The model learns from past seasons how much a team that played hurt tends to beat its ratings. Future weeks and playoff games are then projected at full health (no current injury load).</li>
+      <li><b>Limits:</b> players on injured reserve leave the weekly report, so long-term injuries count only while listed, and a projection at full health is wrong for a player who is out for the season. Interception luck is not adjusted yet: the charting that flags interception-worthy throws only goes back to 2022.</li>
+    </ul>
+  </section>
+
   <section id="record"><h2>Track record</h2>
     <p>Every finished game is graded with the Brier score and log loss, for the model and for the market (vig-free moneyline, else the spread), on the same games. Ties are left out.</p>
     <ul>
@@ -90,6 +99,10 @@
 
   <section id="nextgen"><h2>Next Gen Stats and PFR cards</h2>
     <p>Weekly Next Gen Stats and PFR rows are combined with the same 6-week recency weights as the play-by-play stats. Player stats need a minimum sample (100 attempts for QBs, 50 carries for RBs, 25 targets for receivers) and are not shrunk. Team stats (stacked boxes, pressure, tackling) are shrunk to the league mean. When PFR pressures are available they replace the "QB hit + sack" proxy for the team pressure card; the play-level proxy is still used for the clean-pocket and four-man-rush cards and for recaps. None of these are opponent-adjusted.</p>
+  </section>
+
+  <section id="fantasy"><h2>Fantasy tab</h2>
+    <p>Up to six cards per game from nflverse's expected fantasy points model (PPR), weekly player stats and ESPN QBR, ranked by how unusual each finding is: points per game over or under expected, touchdowns over or under expected, expected points per game (opportunity), points allowed by the opposing defense to each position, WOPR (1.5 × target share + 0.7 × air-yard share) and QBR. Expected points come from each player's targets, carries, air yards and field position, so a big gap between actual and expected usually shrinks. Season-to-date averages, not recency-weighted, and points allowed are not adjusted for the offenses a defense faced.</p>
   </section>
 
   <section id="recaps"><h2>Post-game recaps</h2>

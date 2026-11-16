@@ -10,7 +10,7 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-from . import (assets, bracket, clean, context, extras, feeds, health, league, leverage, model, model_cards, notify,
+from . import (assets, bracket, clean, context, extras, fantasy, feeds, health, league, leverage, model, model_cards, notify,
                record, share, stats, story, summary, templates_player, templates_team)
 from .text import agree
 from .config import BUTTONDOWN_USERNAME, EMAIL_PER_TEAM, GOATCOUNTER_CODE, MODEL_FIRST_SEASON, SITE_URL
@@ -223,6 +223,7 @@ def main():
         team_cards, team_n = story.select(rendered + specials + [c for c in ctxs if c], MIN_TEAM_CARDS, MAX_TEAM_CARDS, (a_, h_))
         pc = templates_player.Cards(ptabs, pctx, M, tpls, game)
         player_cards, player_n = templates_player.select(pc.all(a_, h_), MIN_PLAYER_CARDS, MAX_PLAYER_CARDS)
+        fantasy_cards, fantasy_n = fantasy.select(fantasy.Fantasy(ptabs, pctx, M, tpls, game).all(a_, h_))
         keys = {t: story.keys_for(t, cands, specials, M) for t in (a_, h_)}
         heat = []
         for c in cands:
@@ -244,7 +245,7 @@ def main():
         mcards = model_cards.build(mp, mmeta, M, pctx["names"]) if mp else []
         kicker = f"{M[a_]['nick']} at {M[h_]['nick']} · {label}, {args.season}".upper()
         plurals = [M[t]["label"] for t in (a_, h_) if M[t].get("plural")]
-        for c in team_cards + player_cards + mcards:
+        for c in team_cards + player_cards + fantasy_cards + mcards:
             c.pop("_key", None)
             for f in ("t1", "t2", "sub"):
                 c[f] = agree(c[f], plurals)
@@ -291,6 +292,7 @@ def main():
                "kicker": kicker, "kickoff": ko, "primetime": prime, "line": ln, "leverage": lv, "summary": summ,
                "summary_src": summ_src, "summary_hash": fh, "keys": keys, "heat": heat, "team_cards": team_cards,
                "player_cards": player_cards, "team_n": team_n, "player_n": player_n, "built": built,
+               "fantasy_cards": fantasy_cards, "fantasy_n": fantasy_n,
                "after_kickoff": kicked_off(g, now) if mode == "live" else False, "line_asof": ln_asof, "line_now": ln_now,
                "mode": mode, "through_week": week - 1, "backfill": args.backfill,
                "model": ({"p_home": mp["p_home"], "margin": mp["margin"], "market": mp["market"],
@@ -391,7 +393,8 @@ def main():
                           "projected": status != "final"})
     champ = out_rounds[-1]["games"][0]["winner"] if out_rounds and out_rounds[-1]["code"] == "SB" else None
     _write(ddir / "bracket.json", {"season": args.season, "status": status, "through_week": week - 1, "built": built,
-                                   "seeds": sd, "rounds": out_rounds, "champion": champ, "synthetic": synth_run})
+                                   "seeds": sd, "rounds": out_rounds, "champion": champ, "synthetic": synth_run,
+                                   "luck": (mmeta or {}).get("luck")})
     log.info("projected: %d games in weeks %s · bracket %s, %d games", n_proj, fut, status, len(pob))
 
     # ---------- index ----------
@@ -434,6 +437,7 @@ def main():
     health.info("games", len(board))
     health.info("projected_games", n_proj)
     health.info("summaries", sum_counts)
+    health.info("luck", (mmeta or {}).get("luck"))
     health.info("model", {"ran": bool(mmeta), **({k: mmeta[k] for k in ("alpha", "sigma", "hfa", "n_train")} if mmeta else {})})
     if not board:
         health.error("no games written")

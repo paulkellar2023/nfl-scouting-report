@@ -43,20 +43,24 @@ def load(season):
         "x": {**{f"ngs_{k[:4] if k != 'receiving' else 'rec'}": _try(f"nextgen {k}", lambda k=k: nfl.load_nextgen_stats([season], stat_type=k))
                  for k in ("passing", "rushing", "receiving")},
               **{f"pfr_{k}": _try(f"pfr {k}", lambda k=k: nfl.load_pfr_advstats([season], stat_type=k, summary_level="week"))
-                 for k in ("pass", "rush", "rec", "def")}},
+                 for k in ("pass", "rush", "rec", "def")},
+              "ffo": _try("ff_opportunity", lambda: nfl.load_ff_opportunity([season], stat_type="weekly")),
+              "pstats": _try("player_stats", lambda: nfl.load_player_stats([season], summary_level="week")),
+              "qbr": _try("espn_qbr", lambda: nfl.load_espn_qbr([season], summary_type="week"))},
         "synthetic": False,
     }
 
 
 MODEL_COLS = ["season", "season_type", "week", "game_id", "posteam", "defteam", "home_team", "play_type", "epa",
-              "pass", "qb_dropback", "wp", "passer_player_id", "rusher_player_id"]
+              "pass", "qb_dropback", "wp", "passer_player_id", "rusher_player_id", "fumble"]
 
 
 def load_history(season, first, cur_pbp, cache_dir):
     """Extra seasons for the model. Skips pbp for seasons whose feature cache exists."""
     import nflreadpy as nfl
 
-    need = [s for s in range(first, season) if not (cache_dir / f"features_{s}.csv").exists()]
+    from .model import cache_files
+    need = [s for s in range(first, season) if not all(f.exists() for f in cache_files(cache_dir, s))]
     pbp_seasons = sorted({x for s in need for x in (s - 1, s)} | {season - 1})
     frames = [cur_pbp[[c for c in MODEL_COLS if c in cur_pbp.columns]]]
     if pbp_seasons:

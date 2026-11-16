@@ -14,14 +14,20 @@ from .config import HALF_LIFE_WEEKS, MARGIN_SD, WP_EFF
 
 log = logging.getLogger(__name__)
 
-FEATS = ["pass_edge", "rush_edge", "qb_diff", "inj_off", "inj_def", "rest_diff"]
+FEATS = ["pass_edge", "rush_edge", "qb_diff", "inj_off", "inj_def", "rest_diff", "inj_hist"]
 LABELS = {"pass_edge": "Passing matchup", "rush_edge": "Rushing matchup", "qb_diff": "Starting QB",
-          "inj_off": "Offensive injuries", "inj_def": "Defensive injuries", "rest_diff": "Rest", "home": "Home field"}
+          "inj_off": "Offensive injuries", "inj_def": "Defensive injuries", "rest_diff": "Rest",
+          "inj_hist": "Injuries behind ratings", "home": "Home field"}
+FEAT_VER = "v2"  # bump when features change: old caches are ignored
 PRIOR_SEASON_W = 0.35       # weight on last season's plays (decays further by week)
 QB_PRIOR, QB_K = -0.05, 150  # QB EPA/dropback shrinks toward replacement level with k pseudo-dropbacks
 STATUS_W = {"Out": 1.0, "Doubtful": 0.85, "Questionable": 0.25}
 ALPHAS = [0.1, 0.3, 1, 3, 10, 30, 100, 300]
 CACHE = Path("model/cache")
+
+
+def cache_files(cache_dir, s):
+    return [Path(cache_dir) / f"features_{FEAT_VER}_{v}_{s}.csv" for v in ("raw", "lk")]
 
 
 def _prep(pbp):
@@ -34,7 +40,13 @@ def _prep(pbp):
     d["dropback"] = (d["qb_dropback"].fillna(0) == 1) | (d["pass"].fillna(0) == 1)
     d["eff"] = d["wp"].between(*WP_EFF)
     d["qb_id"] = d["passer_player_id"].where(d["passer_player_id"].notna(), d["rusher_player_id"]).where(d["dropback"])
-    return d[["season", "week", "game_id", "posteam", "defteam", "home_team", "epa", "dropback", "eff", "qb_id"]]
+    # Turnover-luck version: who recovers a fumble is close to a coin flip, so every fumble play gets the
+    # season's average EPA for fumble plays of its type (pass or run) instead of its actual result.
+    fum = pd.to_numeric(d["fumble"], errors="coerce").fillna(0).eq(1) if "fumble" in d.columns else pd.Series(False, index=d.index)
+    d["fum"] = fum
+    avg = d[fum].groupby(["season", "dropback"])["epa"].transform("mean")
+    d["epa_lk"] = d["epa"].where(~fum, avg)
+    return d[["season", "week", "game_id", "posteam", "defteam", "home_team", "epa", "epa_lk", "fum", "dropback", "eff", "qb_id"]]
 
 
 def _state(d, season, week):
@@ -91,9 +103,24 @@ def _injury_table(inj, snaps, players):
     return g[g["weight"] > 0.05][cols]
 
 
+def _inj_hist(inj_tot, s, w, t):
+    """Recency-weighted average injury load (offense + defense) over this season's weeks before w."""
+    if inj_tot is None or w <= 1:
+        return 0.0
+    wk = np.arange(1, w)
+    wt = 0.5 ** ((w - wk) / HALF_LIFE_WEEKS)
+    v = np.array([float(inj_tot.get((s, int(k), t), 0.0)) for k in wk])
+    return float((wt * v).sum() / wt.sum())
+
+
+def _inj_total(injt):
+    return injt.groupby(["season", "week", "team"])["weight"].sum().to_dict() if len(injt) else None
+
+
 def _features(d, sched, injt, seasons, max_week=None, starters_override=None):
     starters = _starters(d)
     inj_sum = injt.groupby(["season", "week", "team", "side"])["weight"].sum().unstack("side").fillna(0) if len(injt) else None
+    inj_tot = _inj_total(injt)
     rows = []
     for s in seasons:
         sch = sched[(sched["season"] == s) & (sched["game_type"] == "REG")]
@@ -126,6 +153,7 @@ def _features(d, sched, injt, seasons, max_week=None, starters_override=None):
                              "qb_home": qs[h], "qb_away": qs[a], "qb_home_v": qbv.get(qs[h], QB_PRIOR), "qb_away_v": qbv.get(qs[a], QB_PRIOR),
                              "inj_off": io(h, "off") - io(a, "off"), "inj_def": io(h, "def") - io(a, "def"),
                              "rest_diff": float(np.clip(rest if pd.notna(rest) else 0, -7, 7)),
+                             "inj_hist": _inj_hist(inj_tot, s, w, h) - _inj_hist(inj_tot, s, w, a),
                              "home_flag": 0.0 if str(g.get("location", "Home")) == "Neutral" else 1.0,
                              "margin": g.get("result"), "spread_line": g.get("spread_line"),
                              "home_ml": g.get("home_moneyline"), "away_ml": g.get("away_moneyline"),
@@ -184,6 +212,21 @@ def _fit_alpha(train):
         if np.mean(err) < best:
             best, ba = np.mean(err), a
     return ba
+
+
+def _cv_ll(train):
+    """Leave-one-season-out log loss over the last 3 seasons (picks raw vs. turnover-luck-adjusted EPA)."""
+    seasons = sorted(train["season"].unique())
+    if len(seasons) < 3:
+        return float("inf")
+    done = train[train["margin"] != 0]
+    out = []
+    for s in seasons[-3:]:
+        tr, te = done[done["season"] != s], done[done["season"] == s]
+        r = Ridge().fit(tr, _fit_alpha(tr))
+        sig = _fit_sigma(r.predict(tr), (tr["margin"] > 0).astype(float).values)
+        out.append(_ll(norm.cdf(r.predict(te) / sig), (te["margin"] > 0).astype(float).values))
+    return float(np.mean(out))
 
 
 def _fit_sigma(m, y):
@@ -247,20 +290,30 @@ def run(hist, season, week, starters, first_season):
     injt = _injury_table(hist.get("injuries"), hist.get("snaps"), hist.get("players"))
     log.info("model: %d plays, %d injury rows", len(d), len(injt))
     CACHE.mkdir(parents=True, exist_ok=True)
-    parts = []
-    for s in range(first_season, season):
-        f = CACHE / f"features_{s}.csv"
-        if f.exists() and not hist.get("synthetic"):
-            parts.append(pd.read_csv(f))
-            continue
-        if not (d["season"] == s).any():
-            continue
-        fs = _features(d, sched, injt, [s])
-        if not hist.get("synthetic"):
-            fs.to_csv(f, index=False)
-        parts.append(fs)
-    cur = _features(d, sched, injt, [season], max_week=week, starters_override=starters)
-    allf = pd.concat(parts + [cur], ignore_index=True)
+    variants = {}
+    for vi, v in enumerate(("raw", "lk")):
+        dv = d if v == "raw" else d.assign(epa=d["epa_lk"])
+        parts = []
+        for s in range(first_season, season):
+            f = cache_files(CACHE, s)[vi]
+            if f.exists() and not hist.get("synthetic"):
+                parts.append(pd.read_csv(f))
+                continue
+            if not (d["season"] == s).any():
+                continue
+            fs = _features(dv, sched, injt, [s])
+            if not hist.get("synthetic"):
+                fs.to_csv(f, index=False)
+            parts.append(fs)
+        cur_v = _features(dv, sched, injt, [season], max_week=week, starters_override=starters)
+        allf_v = pd.concat(parts + [cur_v], ignore_index=True)
+        tr_v = allf_v[allf_v["margin"].notna() & ((allf_v["season"] < season) | (allf_v["week"] < week))]
+        variants[v] = (dv, cur_v, allf_v, _cv_ll(tr_v))
+    has_fum = bool(d["fum"].any())
+    pick = "lk" if has_fum and variants["lk"][3] <= variants["raw"][3] else "raw"
+    d, cur, allf, _ = variants[pick]
+    log.info("model: turnover-luck CV log loss raw %.4f vs adjusted %.4f -> using %s",
+             variants["raw"][3], variants["lk"][3], pick)
     train = allf[allf["margin"].notna() & ((allf["season"] < season) | (allf["week"] < week))]
     bt, calib = backtest(allf[allf["season"] < season])
     alpha = _fit_alpha(train)
@@ -291,9 +344,12 @@ def run(hist, season, week, starters, first_season):
     meta = {"backtest": bt, "calib": calib, "sigma": sig, "alpha": alpha, "n_train": int(len(train)),
             "coef_pts_per_sd": {LABELS[f]: round(float(b), 2) for f, b in zip(FEATS, r.beta[:-1])},
             "hfa": round(float(r.beta[-1]), 2), "train_seasons": [int(first_season), int(season)],
-            "injuries_available": bool(len(injt)), "season_walk": season_walk(allf, season, week)}
+            "injuries_available": bool(len(injt)), "season_walk": season_walk(allf, season, week),
+            "luck": {"turnover_adjusted": pick == "lk", "fumbles_in_data": has_fum,
+                     "cv_ll": {"raw": round(variants["raw"][3], 4), "adjusted": round(variants["lk"][3], 4)}}}
     log.info("model: alpha %s sigma %.2f hfa %.2f coefs %s", alpha, sig, r.beta[-1], meta["coef_pts_per_sd"])
     st, qbv = _state(d, season, week)
+    inj_tot = _inj_total(injt)
 
     def predict(home, away, neutral=False, rest=0.0, spread=None, home_ml=None, away_ml=None):
         """Projection for any pairing with today's ratings and starters, no injury load (future weeks, playoffs)."""
@@ -307,7 +363,8 @@ def run(hist, season, week, starters, first_season):
             return None
         qh, qa = starters.get(home), starters.get(away)
         row.update({"qb_diff": qbv.get(qh, QB_PRIOR) - qbv.get(qa, QB_PRIOR), "inj_off": 0.0, "inj_def": 0.0,
-                    "rest_diff": float(np.clip(rest if pd.notna(rest) else 0, -7, 7)), "home_flag": 0.0 if neutral else 1.0})
+                    "rest_diff": float(np.clip(rest if pd.notna(rest) else 0, -7, 7)), "home_flag": 0.0 if neutral else 1.0,
+                    "inj_hist": _inj_hist(inj_tot, season, week, home) - _inj_hist(inj_tot, season, week, away)})
         c = r.contribs(pd.DataFrame([row]))[0]
         m = float(c.sum())
         pm, src = market_prob(spread, home_ml, away_ml)

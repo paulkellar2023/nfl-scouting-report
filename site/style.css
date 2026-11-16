@@ -359,8 +359,8 @@ main { flex: 1; width: 100%; max-width: 1520px; margin: 0 auto; padding: 24px 16
 @media (max-width: 760px) {
   .bgames { justify-content: flex-start; }
   .stat .vs.three b { font-size: 30px; }
-  .pickers { grid-template-columns: repeat(10, 1fr); }
-  .pickers label { grid-column: span 5; }
+  .pickers { grid-template-columns: repeat(12, 1fr); }
+  .pickers label { grid-column: span 6; }
   .pickers .follow-btn { grid-column: span 2; padding: 8px 2px; font-size: 9px; letter-spacing: .04em; justify-content: center; }
 }
 @media (max-width: 1180px) {

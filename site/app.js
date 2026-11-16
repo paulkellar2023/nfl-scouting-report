@@ -521,7 +521,23 @@ function tline(c) {
   return lineChart([{ label: "OFFENSE", color: T(c.team).accent, pts: off }, { label: "DEF. ALLOWED", color: "#9C9CA0", dash: "10 8", pts: def }],
     { fy: "epa", zero: true, y_label: "EPA PER PLAY", y_sub: "3-week rolling mean" });
 }
-const CHARTS = { cumline, tline, scatter, pscatter, duel, bars, gaps, splits, trend, pstrip, probbars, waterfall, dist, injuries, units, calib };
+function pbars(c) {
+  const rows = c.rows, rh = 64, svg = newSvg(70 + rows.length * rh + 60), l = 330, r = W - 120;
+  const vals = rows.map(x => x.v), lo = Math.min(0, ...vals), hi = Math.max(0, ...vals), pad = (hi - lo || 1) * 0.08;
+  const X = lin(lo - pad, hi + pad, l, r), x0 = X(0);
+  rows.forEach((x, i) => {
+    const y = 50 + i * rh, m = T(x.team), col = x.hl ? m.accent : "#5A5A62";
+    logo(svg, x.team, 40, y + rh / 2 - 6, 30, {});
+    txt(svg, 70, y + rh / 2 + 2, x.name, { "font-size": 26, "font-weight": x.hl ? 900 : 600, fill: x.hl ? C.title : "#BDBDBD" });
+    el("rect", { x: Math.min(x0, X(x.v)), y: y + 8, width: Math.max(2, Math.abs(X(x.v) - x0)), height: rh - 28, rx: 6, fill: col }, svg);
+    txt(svg, x.v >= 0 ? X(x.v) + 12 : X(x.v) - 12, y + rh / 2 + 2, fmt(x.v, c.fmt), { "text-anchor": x.v >= 0 ? "start" : "end", "font-size": 28,
+      style: "font-family:var(--num)", "font-weight": 600, fill: x.hl ? m.accent : "#BDBDBD" });
+  });
+  el("line", { x1: x0, x2: x0, y1: 40, y2: 50 + rows.length * rh, stroke: "#55555B", "stroke-width": 2 }, svg);
+  txt(svg, (l + r) / 2, 50 + rows.length * rh + 44, c.axis || "", { "text-anchor": "middle", "font-size": 22, "font-weight": 900, fill: C.title });
+  return svg;
+}
+const CHARTS = { pbars, cumline, tline, scatter, pscatter, duel, bars, gaps, splits, trend, pstrip, probbars, waterfall, dist, injuries, units, calib };
 
 
 /* ---------- card ---------- */
@@ -688,7 +704,7 @@ async function matchup(id, tab, focus) {
     <section class="keys">${[g.away, g.home].map(t => `<div class="keyset" style="--acc:${T(t).accent}">
       <h3>${logoHTML(t)}${esc(T(t).nick)}: 3 keys to success${rc && rc.keys_won[t] && rc.keys_won[t][1] ? ` <small>won ${rc.keys_won[t][0]} of ${rc.keys_won[t][1]}</small>` : ""}</h3><ol>${(g.keys[t] || []).map((k, i) => `<li><i>${i + 1}</i><div>
         <b>${esc(k.phrase)}<em class="${k.favorable ? "up" : "dn"}">${k.favorable ? "EDGE" : "WATCH"}</em></b><p>${esc(k.detail)}</p>${keyRes(rc, t, i)}</div></li>`).join("")}</ol></div>`).join("")}</section>
-    <div class="tabs"><div role="tablist"><button role="tab" data-tab="team">TEAM</button><button role="tab" data-tab="players">PLAYERS</button>${(g.model_cards || []).length ? '<button role="tab" data-tab="model">MODEL</button>' : ""}</div>
+    <div class="tabs"><div role="tablist"><button role="tab" data-tab="team">TEAM</button><button role="tab" data-tab="players">PLAYERS</button>${(g.fantasy_cards || []).length ? '<button role="tab" data-tab="fantasy">FANTASY</button>' : ""}${(g.model_cards || []).length ? '<button role="tab" data-tab="model">MODEL</button>' : ""}</div>
       <label class="topn">SHOW <select aria-label="How many cards to show"><option value="auto">Top picks</option><option value="10">Top 10</option></select></label></div>
     <div class="cards"></div>`;
   if (g.mode && g.mode !== "live") app.insertAdjacentHTML("afterbegin", `<p class="proj-note">PROJECTED${g.round ? " " + esc(g.round.toUpperCase()) : ""} MATCHUP: built from data through week ${g.through_week}. The model uses today's ratings and starters with no injury report. The summary is rule-based.</p>`);
@@ -701,11 +717,12 @@ async function matchup(id, tab, focus) {
     cur = t;
     app.querySelectorAll(".tabs button").forEach(b => b.setAttribute("aria-selected", String(b.dataset.tab === t)));
     const box = $(".cards", app); box.innerHTML = "";
-    $(".topn", app).style.visibility = t === "model" ? "hidden" : "visible";
-    const all = t === "players" ? g.player_cards : t === "model" ? g.model_cards : g.team_cards;
-    const n = t === "model" ? all.length : topSel.value === "10" ? 10 : (t === "players" ? g.player_n : g.team_n) ?? all.length;
+    $(".topn", app).style.visibility = t === "model" || t === "fantasy" ? "hidden" : "visible";
+    const all = t === "players" ? g.player_cards : t === "model" ? g.model_cards : t === "fantasy" ? g.fantasy_cards : g.team_cards;
+    const n = t === "model" || t === "fantasy" ? all.length : topSel.value === "10" ? 10 : (t === "players" ? g.player_n : g.team_n) ?? all.length;
     const list = all.slice(0, n);
     if (t === "model" && g.model) box.insertAdjacentHTML("beforeend", `<p class="summary model-sum"><b>OUR NUMBER VS. THE MARKET</b>${esc(g.model.summary)}<span>A different lens on the data, not betting advice.</span></p>`);
+    if (t === "fantasy") box.insertAdjacentHTML("beforeend", `<p class="summary model-sum"><b>FANTASY LENS</b>Who is scoring more or less than their usage predicts, PPR scoring. Expected points come from each player's targets, carries, depth and field position.<span>For fun, not betting advice.</span></p>`);
     if (!list.length) box.innerHTML = '<p class="empty">No cards cleared the sample-size bar for this matchup.</p>';
     list.forEach((c, i) => { const e = cardEl(c, g); e.style.animationDelay = `${i * 60}ms`; box.appendChild(e); });
   };
@@ -714,8 +731,9 @@ async function matchup(id, tab, focus) {
     show(b.dataset.tab); history.replaceState(null, "", `#/${G.season}/${G.week}/${id}` + (b.dataset.tab !== "team" ? "?tab=" + b.dataset.tab : ""));
   });
   if (focus && ![...g.team_cards.slice(0, g.team_n), ...g.player_cards.slice(0, g.player_n)].some(c => c.id === focus)) topSel.value = "10";
-  const ftab = focus && [...g.player_cards].some(c => c.id === focus) ? "players" : tab;
-  show(["players", "model"].includes(ftab) && (ftab !== "model" || (g.model_cards || []).length) ? ftab : "team");
+  const ftab = focus && [...g.player_cards].some(c => c.id === focus) ? "players" : focus && (g.fantasy_cards || []).some(c => c.id === focus) ? "fantasy" : tab;
+  const okTab = t => t === "players" || (t === "model" && (g.model_cards || []).length) || (t === "fantasy" && (g.fantasy_cards || []).length);
+  show(okTab(ftab) ? ftab : "team");
   if (focus) { const e = document.getElementById("card-" + focus.replace(/[^a-z0-9]/gi, "-")); if (e) e.scrollIntoView({ block: "center" }); }
 }
 
@@ -789,7 +807,7 @@ async function bracketView() {
     ${B.champion ? `<p class="champ">${logoHTML(B.champion)}<b>${esc(T(B.champion).nick)}</b><small>${B.status === "final" ? "CHAMPION" : "MODEL FAVORITE"}</small></p>` : ""}</div></div>`);
   if (confs[1]) cols.push(rcol("CON", confs[1], "CONFERENCE", "R"), rcol("DIV", confs[1], "DIVISIONAL", "R"), rcol("WC", confs[1], "WILD CARD", "R"));
   app.innerHTML = `<div class="board-head"><h1>Playoff <span>${B.status === "final" ? "bracket" : "picture"}</span></h1></div>
-    <p class="board-note">${B.status === "final" ? "Regular season is over. Real matchups and results are shown; rounds not yet set are filled with the model favorite." : `If the season ended today: seeds from current standings (through week ${B.through_week}), every later round filled by the model favorite. Tiebreakers are approximate.`} Click any matchup for its full cards. <a href="methods.html#bracket">How it works</a></p>
+    <p class="board-note">${B.status === "final" ? "Regular season is over. Real matchups and results are shown; rounds not yet set are filled with the model favorite." : `If the season ended today: seeds from current standings (through week ${B.through_week}), every later round filled by the model favorite. Tiebreakers are approximate.`} Click any matchup for its full cards. Model odds are luck-adjusted: ratings are corrected for the injuries each team played through${B.luck && B.luck.turnover_adjusted ? " and fumble-recovery luck is removed" : ""}, and every team is projected at full health. <a href="methods.html#luck">How it works</a></p>
     <div class="bracket">${cols.join("")}</div>
     <section class="log"><h2>Seeds</h2><div class="tbl-wrap"><table class="tbl"><thead><tr><th>SEED</th><th>AFC</th><th>W-L</th><th>NFC</th><th>W-L</th></tr></thead><tbody>
     ${[0, 1, 2, 3, 4, 5, 6].map(i => `<tr><td>${i + 1}</td>${["AFC", "NFC"].map(c => { const s = (B.seeds[c] || [])[i]; return s ? `<td class="tm"><a href="#/team/${s.team}">${logoHTML(s.team)}<b>${esc(T(s.team).nick)}</b></a></td><td>${s.w}-${s.l}${s.t ? "-" + s.t : ""}</td>` : "<td></td><td></td>"; }).join("")}</tr>`).join("")}
@@ -873,7 +891,7 @@ async function route() {
     } catch (e) { console.error(e); $("#app").innerHTML = '<p class="empty">Not built yet. It appears after the next weekly run.</p>'; }
     track(); return;
   }
-  document.querySelectorAll(".navlink").forEach(a => a.classList.remove("on"));
+  document.querySelectorAll(".navlink").forEach(a => a.classList.toggle("on", a.dataset.nav === "home"));
   const season = +(parts[0] || latest.season), week = parts[1] ? (isNaN(+parts[1]) ? parts[1] : +parts[1]) : latest.week, id = parts[2] || "";
   if (!S.week || S.week.season !== season || S.week.week !== week) showLoading("Loading week " + week);
   try { await loadWeek(season, week); } catch (e) { $("#app").innerHTML = '<p class="empty">That week has no report yet.</p>'; return; }

@@ -33,7 +33,7 @@ def build_tables(plays, flags, X=None):
     g["air_share"] = g["aw"] / tot["aw"]
     g["wopr"] = 1.5 * g["tgt_share"] + 0.7 * g["air_share"]
     T["shares"] = g[g["n"] >= 30].set_index("receiver_player_id")
-    for k in ("qb_ttt", "qb_aggr", "rb_ryoe", "wr_sep", "wr_cush"):
+    for k in ("qb_ttt", "qb_aggr", "rb_ryoe", "wr_sep", "wr_cush", "wopr", "ff", "ff_def", "qbr"):
         if X and k in X and len(X[k]) >= 8:
             T[k] = X[k]
     return T
@@ -273,6 +273,10 @@ class Cards:
         l2 = f"{poss(self.M[opp]['label'])} pass defense ranks {ordinal(rp_)}." if rp_ else "The offense runs through him."
         hl = {p for p, _ in pr}
         pts = [self._pt(p, p in hl, x=r.tgt_share, y=r.air_share) for p, r in sh.iterrows()]
+        wt = self.T.get("wopr")
+        if wt is not None and own in wt.index:
+            l2 = (f"His WOPR ({wt.loc[own, 'value']:.2f}) ranks {ordinal(_rank(wt, own))} of {int(wt['value'].notna().sum())}. "
+                  + l2)
         return self._card(f"wr_share:{own}", ot, float(z.get(own, 0)), l1, l2,
                           f"Every receiver with 30+ targets, {self.game['span']}.",
                           {"type": "pscatter", "pts": pts, "fmt_x": "pct", "fmt_y": "pct", "x_label": "TARGET SHARE",
