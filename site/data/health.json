@@ -1,6 +1,6 @@
 {
  "status": "warn",
- "checked": "2026-11-16T03:13Z",
+ "checked": "2026-11-16T03:37Z",
  "warnings": [
   "LLM summary fell back to rule-based for 1 games (search the log for 'summary:')"
  ],
