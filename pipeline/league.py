@@ -32,7 +32,7 @@ def build(site, season, week, plays, sched, tpls, lev_teams, lev_proj, M, qb, na
     r_now, r_then = _ranks(net_now), (_ranks(net_then) if net_then else {})
     tp = {t.id: t for t in tpls}
     reg = sched[(sched["season"] == season) & (sched["game_type"] == "REG")]
-    done = reg[reg["result"].notna() & (reg["week"] < week)]
+    done = reg[reg["result"].notna()]  # every finished game, so records match the standings and the bracket
     e = plays[plays["eff"]]
     wk = e.groupby(["posteam", "week"])["epa"].mean()
     wd = e.groupby(["defteam", "week"])["epa"].mean()

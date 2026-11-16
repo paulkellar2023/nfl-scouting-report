@@ -831,8 +831,8 @@ async function bracketView() {
       ${B.seeds[c].map(sd => { const x = (L && L.teams[sd.team]) || {}, g = (x.w ?? 0) + (x.l ?? 0) + (x.t ?? 0);
         return `<tr><td>${sd.seed}</td><td class="tm"><a href="#/team/${sd.team}">${logoHTML(sd.team)}<b>${esc(T(sd.team).nick)}</b></a></td>
         <td>${sd.w}-${sd.l}${sd.t ? "-" + sd.t : ""}</td>
-        <td>${x.xw === null || x.xw === undefined ? "\u2013" : `${x.xw.toFixed(1)}-${(g - x.xw).toFixed(1)}`}</td>
-        <td>${x.proj ? `${x.proj[0].toFixed(1)}-${x.proj[1].toFixed(1)}` : "\u2013"}</td></tr>`; }).join("")}
+        <td>${x.xw === null || x.xw === undefined ? "\u2013" : `${Math.round(x.xw)}-${g - Math.round(x.xw)}`}</td>
+        <td>${x.proj ? `${Math.round(x.proj[0])}-${Math.round(x.proj[0] + x.proj[1]) - Math.round(x.proj[0])}` : "\u2013"}</td></tr>`; }).join("")}
       </tbody></table></div>`).join("")}</div>
     <p class="board-note">EXP W-L = record the points scored and allowed would predict (Pythagorean, exponent 2.37). PROJ = average final record in 10,000 simulations of the rest of the season.</p></section>`;
 }

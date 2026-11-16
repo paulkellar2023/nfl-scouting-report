@@ -2,6 +2,7 @@
 |P(playoffs | win) - P(playoffs | loss)|. Tiebreakers are approximate: wins, then division wins,
 then a coin flip."""
 import numpy as np
+import pandas as pd
 from scipy.stats import norm
 
 from .config import FUTURE_RATING_REGRESS, HFA_PTS, MARGIN_SD, N_SIMS, PLAYS_PER_GAME
@@ -65,8 +66,16 @@ def simulate(sched, meta, target_week, rate, seed=7):
         win_mask[np.arange(N_SIMS)[:, None], wc] = True
         po[:, cidx] = win_mask
     n_games = {t: int(((reg["home_team"] == t) | (reg["away_team"] == t)).sum()) for t in teams}
+    # This week's games are simulated for leverage even if already played; projected records use the real result.
+    corr = {t: 0.0 for t in teams}
+    for j, g in rem.iterrows():
+        if g.week == target_week and pd.notna(g.get("result")):
+            act = 1.0 if g.result > 0 else (0.5 if g.result == 0 else 0.0)
+            corr[g.home_team] += act - float(p[j])
+            corr[g.away_team] -= act - float(p[j])
     out = {"_teams": {t: round(float(po[:, ix[t]].mean()), 3) for t in teams},
-           "_proj": {t: [round(float(wins[:, ix[t]].mean()), 1), round(n_games[t] - float(wins[:, ix[t]].mean()), 1)] for t in teams}}
+           "_proj": {t: [round(float(wins[:, ix[t]].mean()) + corr[t], 1), round(n_games[t] - float(wins[:, ix[t]].mean()) - corr[t], 1)]
+                     for t in teams}}
     for j, g in rem.iterrows():
         h, a = hi[j], ai[j]
         w = hw[:, j]
