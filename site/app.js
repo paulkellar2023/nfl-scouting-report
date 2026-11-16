@@ -749,18 +749,21 @@ async function recordView() {
   app.innerHTML = `<div class="board-head"><h1>Model <span>track record</span></h1></div>
     <p class="board-note">Our win probabilities vs. the betting market, graded after every game. <a href="methods.html#record">How it is graded</a></p>
     <section class="stats">${statTile("Published picks, " + r.season, r.published.model, r.published.market, "the last version on this site before kickoff")}
+    ${r.backfill && r.backfill.model ? statTile(`Backfilled picks, weeks ${r.backfill.weeks[0]}-${r.backfill.weeks[r.backfill.weeks.length - 1]}`, r.backfill.model, r.backfill.market, "rebuilt after the fact with pre-week data only, closing line") : ""}
     ${statTile("Season walk-forward, " + r.season, r.walk.model, r.walk.market, "every game, each week fit only on earlier games")}</section>
     <div class="cards rec-cards"></div>
-    <section class="log"><h2>Published picks</h2>${r.published.games.length ? `<div class="tbl-wrap"><table class="tbl"><thead><tr><th>WK</th><th>GAME</th><th>MODEL</th><th>MARKET</th><th>FINAL</th></tr></thead><tbody>
-    ${r.published.games.map(x => { const ph = x.p, pk = x.pm, mt = ph >= 0.5 ? x.home : x.away, kt = pk === null ? null : pk >= 0.5 ? x.home : x.away, win = x.y ? x.home : x.away;
-      return `<tr><td>${x.week}</td><td><a href="#/${r.season}/${x.week}/${x.id}">${x.away} at ${x.home}</a></td>
+    <section class="log"><h2>Picks on this site</h2>${(r.site || r.published).games.length ? `<div class="tbl-wrap"><table class="tbl"><thead><tr><th>WK</th><th>GAME</th><th>MODEL</th><th>MARKET</th><th>FINAL</th></tr></thead><tbody>
+    ${(r.site || r.published).games.map(x => { const ph = x.p, pk = x.pm, mt = ph >= 0.5 ? x.home : x.away, kt = pk === null ? null : pk >= 0.5 ? x.home : x.away, win = x.y ? x.home : x.away;
+      return `<tr><td>${x.week}</td><td><a href="#/${r.season}/${x.week}/${x.id}">${x.away} at ${x.home}</a>${x.backfill ? ' <small class="pj">BACKFILL</small>' : ""}</td>
       <td class="${mt === win ? "ok" : "no"}">${mt} ${pctS(Math.max(ph, 1 - ph))} ${mt === win ? "✓" : "✗"}</td>
       <td class="${kt === win ? "ok" : "no"}">${kt ? `${kt} ${pctS(Math.max(pk, 1 - pk))} ${kt === win ? "✓" : "✗"}` : "–"}</td>
       <td>${x.away} ${x.final[x.away]} · ${x.home} ${x.final[x.home]}</td></tr>`; }).join("")}</tbody></table></div>` : '<p class="empty">Picks are graded the week after they are published.</p>'}</section>`;
   const box = $(".rec-cards", app);
   if (r.walk.cum.length) box.appendChild(chartBox("Season to date: model vs. market", "Brier score of every game this season, walk-forward", cumline({ cum: r.walk.cum }),
     "Walk-forward: week N uses a model fit only on games before week N. Uses the starting QB who actually played. Market = closing line, vig removed."));
-  if (r.published.cum.length > 1) box.appendChild(chartBox("Published picks: model vs. market", "Brier score of the picks shown on this site", cumline({ cum: r.published.cum }), "Market = line at our last pre-kickoff build."));
+  const sc = (r.site || r.published).cum;
+  if (sc.length > 1) box.appendChild(chartBox("Picks on this site: model vs. market", "Brier score to date, backfilled and published picks together", cumline({ cum: sc }),
+    "Backfilled weeks use the closing line; published weeks use the line at our last pre-kickoff build."));
   if (r.calib.length) box.appendChild(chartBox("Calibration and past seasons", "When the model says 70%, does the team win about 70% of the time?", calib({ pts: r.calib, seasons: r.backtest }),
     "Walk-forward backtest: each season predicted by a model fit only on earlier seasons."));
 }

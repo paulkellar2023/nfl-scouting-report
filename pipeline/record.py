@@ -186,14 +186,15 @@ def _cum(rows):
 
 def build(site, season, week, mmeta, synthetic):
     """Season track record: published (graded) picks plus a walk-forward run over every game this season."""
-    pub = []
+    pub, back = [], []
     for wdir in sorted((Path(site) / "data" / str(season)).glob("wk*")):
         gj = wdir / "games.json"
         if not gj.exists() or not wdir.name[2:].isdigit():
             continue
         board = json.loads(gj.read_text())
-        if bool(board.get("synthetic")) != bool(synthetic) or board.get("projected") or board.get("backfill"):
+        if bool(board.get("synthetic")) != bool(synthetic) or board.get("projected"):
             continue
+        dest = back if board.get("backfill") else pub
         for tile in board["games"]:
             if not tile.get("final") or not tile.get("model"):
                 continue
@@ -201,17 +202,22 @@ def build(site, season, week, mmeta, synthetic):
             hs, as_ = tile["final"][h], tile["final"][a]
             if hs == as_:
                 continue
-            pub.append({"id": tile["id"], "week": board["week"], "home": h, "away": a,
-                        "p": tile["model"]["p_home"], "pm": tile["model"].get("mkt"),
-                        "final": tile["final"], "y": float(hs > as_)})
+            dest.append({"id": tile["id"], "week": board["week"], "home": h, "away": a,
+                         "p": tile["model"]["p_home"], "pm": tile["model"].get("mkt"),
+                         "final": tile["final"], "y": float(hs > as_), "backfill": dest is back})
     walk = []
     for r in (mmeta or {}).get("season_walk", []):
         if r["margin"] != 0:
             walk.append({**r, "y": float(r["margin"] > 0)})
     pub_m = [x for x in pub if x.get("pm") is not None]
     walk_m = [x for x in walk if x.get("pm") is not None]
+    back_m = [x for x in back if x.get("pm") is not None]
+    site_all = sorted(back + pub, key=lambda x: x["week"])
     out = {"season": season, "week": week,
            "published": {"model": _score(pub_m, "p"), "market": _score(pub_m, "pm"), "games": pub[::-1], "cum": _cum(pub)},
+           "backfill": {"model": _score(back_m, "p"), "market": _score(back_m, "pm"),
+                        "weeks": sorted({x["week"] for x in back})},
+           "site": {"games": site_all[::-1], "cum": _cum(site_all)},
            "walk": {"model": _score(walk_m, "p"), "market": _score(walk_m, "pm"), "cum": _cum(walk)},
            "backtest": (mmeta or {}).get("backtest", []), "calib": (mmeta or {}).get("calib", [])}
     p = Path(site) / "data" / str(season) / "record.json"
