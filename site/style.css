@@ -90,6 +90,12 @@ main { flex: 1; width: 100%; max-width: 1520px; margin: 0 auto; padding: 24px 16
 .hero .mline { max-width: 360px; margin: 10px auto 0; text-align: center; }
 .model-sum { grid-column: 1 / -1; margin: 0; }
 .model-sum span { display: block; margin-top: 6px; font-size: 12px; color: var(--dim); }
+.tile-cta { margin-top: auto; display: flex; justify-content: space-between; align-items: center; font-size: 10px; font-weight: 900;
+  letter-spacing: .12em; color: var(--mute); transition: color .15s ease; }
+.tile-cta b { font-size: 14px; color: var(--brand); transition: transform .15s ease; }
+.tile:hover .tile-cta, .tile:focus-visible .tile-cta { color: var(--brand); }
+.tile:hover .tile-cta b, .tile:focus-visible .tile-cta b { transform: translateX(4px); }
+.board-note b { color: var(--ink); }
 .lev { height: 4px; background: #1C1C21; border-radius: 2px; overflow: hidden; }
 .lev i { display: block; height: 100%; background: var(--brand); }
 

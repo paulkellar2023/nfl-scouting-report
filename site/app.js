@@ -655,7 +655,7 @@ function board() {
       const side = g.model.p_home > g.model.mkt ? g.home : g.away, pm = side === g.home ? g.model.p_home : 1 - g.model.p_home, pk = side === g.home ? g.model.mkt : 1 - g.model.mkt;
       return `<a class="dis" href="#/${G.season}/${G.week}/${g.id}?tab=model" style="--acc:${T(side).accent}">${logoHTML(side)}<span><b>${esc(T(side).nick)}</b> model ${Math.round(pm * 100)}% · market ${Math.round(pk * 100)}%</span><em>+${Math.round((pm - pk) * 100)}</em></a>`;
     }).join("")}</div></section>` : ""}
-    ${proj}<p class="board-note">Edges: offense vs. opposing defense, in z-units. <a href="methods.html#cards">How it works</a>${G.week === "PO" ? ' · <a href="#/bracket">See the bracket</a>' : ""}</p><div class="grid"></div>`;
+    ${proj}<p class="board-note"><b>Click any game</b> for the full matchup: keys to success, Team, Players, Fantasy and Model cards. Edges: offense vs. opposing defense, in z-units. <a href="methods.html#cards">How it works</a>${G.week === "PO" ? ' · <a href="#/bracket">See the bracket</a>' : ""}</p><div class="grid"></div>`;
   const sel = $(".sortby select", app); sel.value = sortBy;
   sel.onchange = () => { try { localStorage.setItem("boardSort", sel.value); } catch (e) { /* storage blocked */ } board(); };
   const order = [...G.games];
@@ -674,7 +674,8 @@ function board() {
       ${heatHTML(g.heat, g.away, g.home)}
       ${g.model ? numsHTML(g.model, g.home, g.away) : ""}
       ${g.tease ? `<p class="tease">${esc(g.tease[0])}<span>${esc(g.tease[1])}</span></p>` : ""}
-      <div class="lev" title="Playoff leverage"><i style="width:${(g.leverage / maxLev) * 100}%"></i></div>`;
+      <div class="lev" title="Playoff leverage"><i style="width:${(g.leverage / maxLev) * 100}%"></i></div>
+      <span class="tile-cta">FULL MATCHUP: KEYS, CARDS &amp; MODEL <b aria-hidden="true">&rarr;</b></span>`;
     const pre = () => getGame(G.season, G.week, g.id).catch(() => {});
     tile.addEventListener("mouseenter", pre, { once: true });
     tile.addEventListener("touchstart", pre, { once: true, passive: true });
