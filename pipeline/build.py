@@ -10,7 +10,7 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-from . import (assets, bracket, clean, context, elo, extras, fantasy, special, tendencies, feeds, health, league, leverage, model, model_cards, notify,
+from . import (assets, bracket, clean, context, elo, extras, fantasy, special, tendencies, viz, feeds, health, league, leverage, model, model_cards, notify,
                record, share, stats, story, summary, templates_player, templates_team)
 from .text import agree
 from .config import BUTTONDOWN_USERNAME, EMAIL_PER_TEAM, GOATCOUNTER_CODE, MODEL_FIRST_SEASON, SITE_URL
@@ -90,6 +90,32 @@ def kicked_off(g, now):
         return False
 
 
+FIELD_TEAM = {"passchart", "runchart", "drives", "fourthmap"}
+FIELD_PLAYER = {"rcvchart", "pressmap"}
+
+
+def with_field(cards, n, pool, kinds, cap=10):
+    """Default view gets at least 1 field chart and at most 2. A 4-card default gets 2 field charts added at the end."""
+    is_f = lambda c: c["id"].split(":")[0] in kinds
+    top, rest = cards[:n], cards[n:]
+    extra = sorted([c for c in pool if is_f(c) and c not in cards], key=lambda c: -c["score"])
+    avail = [c for c in rest if is_f(c)] + extra
+    if len([c for c in top if is_f(c)]) > 2:
+        keep, drop = [], []
+        for c in top:
+            (drop if is_f(c) and sum(is_f(k) for k in keep) >= 2 else keep).append(c)
+        top, rest = keep, drop + rest
+    if n <= 4 and (avail or any(is_f(c) for c in top)):
+        fs = sorted([c for c in top + avail if is_f(c)], key=lambda c: -c["score"])[:2]
+        nf = [c for c in cards if not is_f(c)][:4]
+        top = nf + fs  # 4 regular cards, then the 2 field charts last
+    elif not any(is_f(c) for c in top) and avail and top:
+        top = top[:-1] + [avail[0]]
+    rest = [c for c in cards + extra if c not in top]
+    out = top + rest
+    return out[:max(cap, len(top))], len(top)
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--season", type=int, default=SEASON)
@@ -156,6 +182,8 @@ def main():
     ptabs = templates_player.build_tables(plays, flags, X)
     SP = special.tables(raw["pbp"], args.season, week)
     TX = tendencies.tables(plays, tpls)
+    VZ = viz.tables(plays, raw["pbp"], args.season, week)
+    health.info("visuals", sorted(k for k in VZ if not k.endswith("_lg")))
     snap_t = fantasy.snap_table((hist or {}).get("snaps"), args.season, week)
     if snap_t is not None:
         ptabs["snap"] = snap_t
@@ -228,10 +256,20 @@ def main():
         ctxs = [story.form_card(form, a_, h_, M, game), story.luck_card(luck, a_, h_, M, game),
                 extras.box_card(X, a_, h_, M, game), extras.box_card(X, h_, a_, M, game),
                 special.st_card(SP, a_, h_, M, game), special.fg_card(SP, a_, h_, M, game), special.fourth_card(SP, a_, h_, M, game),
-                tendencies.zone_card(TX, a_, h_, M, game), tendencies.lean_card(TX, a_, h_, M, game)]
-        team_cards, team_n = story.select(rendered + specials + [c for c in ctxs if c], MIN_TEAM_CARDS, MAX_TEAM_CARDS, (a_, h_))
+                tendencies.zone_card(TX, a_, h_, M, game), tendencies.lean_card(TX, a_, h_, M, game),
+                viz.pass_card(VZ, a_, h_, M, game), viz.run_card(VZ, a_, h_, M, game), viz.drive_card(VZ, a_, h_, M, game),
+                viz.fourth_map_card(VZ, a_, h_, M, game)]
+        pool_t = rendered + specials + [c for c in ctxs if c]
+        team_cards, team_n = story.select(pool_t, MIN_TEAM_CARDS, MAX_TEAM_CARDS, (a_, h_))
+        team_cards, team_n = with_field(team_cards, team_n, [c for c in pool_t if c], FIELD_TEAM)
         pc = templates_player.Cards(ptabs, pctx, M, tpls, game)
-        player_cards, player_n = templates_player.select(pc.all(a_, h_), MIN_PLAYER_CARDS, MAX_PLAYER_CARDS)
+        tpp = {t.id: t for t in tpls}
+        extra_p = [viz.receiver_card(VZ, a_, h_, M, game, pctx, pc._name, pc._img),
+                   viz.pressure_card(VZ, a_, h_, M, game, pctx, pc._name, pc._img, ptabs.get("qb_ttt"),
+                                     tpp["pressure"].deff if "pressure" in tpp else None)]
+        pool_p = pc.all(a_, h_) + [c for c in extra_p if c]
+        player_cards, player_n = templates_player.select(pool_p, MIN_PLAYER_CARDS, MAX_PLAYER_CARDS)
+        player_cards, player_n = with_field(player_cards, player_n, [c for c in pool_p if c], FIELD_PLAYER)
         fantasy_cards, fantasy_n = fantasy.select(fantasy.Fantasy(ptabs, pctx, M, tpls, game).all(a_, h_))
         keys = {t: story.keys_for(t, cands, specials, M) for t in (a_, h_)}
         heat = []

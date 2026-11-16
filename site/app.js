@@ -604,7 +604,143 @@ function strips(c) {
   });
   return svg;
 }
-const CHARTS = { zones, strips, elotrend, pbars, cumline, tline, scatter, pscatter, duel, bars, gaps, splits, trend, pstrip, probbars, waterfall, dist, injuries, units, calib };
+
+/* ---------- field visuals (pass chart, run chart, receiver chart, drives, 4th-down map) ---------- */
+const RED = "#FF5A5A", GREEN = "#4FC3A1";
+function pfield(svg, ox, opt) {
+  // Tilted field: depth d0..d1 yards, lateral x in -1.1..1.1, wider at the bottom.
+  const { d0 = -8, d1 = 42, yb = 560, yt = 80, w0 = 215, w1 = 140, lines = 5, title = "", col = "#F4F4F2", lanes = ["LEFT", "MIDDLE", "RIGHT"] } = opt;
+  const Y = d => yb - (d - d0) / (d1 - d0) * (yb - yt), half = d => w0 + (w1 - w0) * (d - d0) / (d1 - d0);
+  const P = (x, d) => [ox + x * half(d) / 1.1, Y(d)];
+  el("polygon", { points: [P(-1.1, d0), P(1.1, d0), P(1.1, d1), P(-1.1, d1)].map(q => q.join(",")).join(" "), fill: "#16161A", stroke: "#2A2A30", "stroke-width": 2 }, svg);
+  for (let d = Math.ceil(d0 / lines) * lines; d <= d1; d += lines) {
+    const [x1, y] = P(-1.1, d), [x2] = P(1.1, d);
+    el("line", { x1, x2, y1: y, y2: y, stroke: d === 0 ? "#5B8DEF" : "#2E2E35", "stroke-width": d === 0 ? 3 : d % (2 * lines) ? 1 : 2 }, svg);
+    if (d > 0 && d % (2 * lines) === 0) { txt(svg, x1 - 10, y + 6, "+" + d, { "text-anchor": "end", "font-size": 17, "font-weight": 800, fill: C.tick }); txt(svg, x2 + 10, y + 6, "+" + d, { "font-size": 17, "font-weight": 800, fill: C.tick }); }
+  }
+  txt(svg, P(-1.1, 0)[0] - 10, Y(0) + 6, "LOS", { "text-anchor": "end", "font-size": 16, "font-weight": 900, fill: "#5B8DEF" });
+  if (title) txt(svg, ox, 40, title, { "text-anchor": "middle", "font-size": 20, "font-weight": 900, fill: col, "letter-spacing": ".06em" });
+  lanes.forEach((l, i) => txt(svg, P(-1.1 + (i + 0.5) * 2.2 / lanes.length, d0)[0], yb + 28, l, { "text-anchor": "middle", "font-size": 14, "font-weight": 900, fill: C.tick }));
+  return { P, Y };
+}
+function passDot(svg, x, y, r, acc, s = 1) {
+  if (r === "inc") el("circle", { cx: x, cy: y, r: 6 * s, fill: "none", stroke: "#8A8A90", "stroke-width": 1.8, opacity: 0.85 }, svg);
+  else if (r === "comp") el("circle", { cx: x, cy: y, r: 6.5 * s, fill: acc, opacity: 0.92 }, svg);
+  else if (r === "td") { el("circle", { cx: x, cy: y, r: 11 * s, fill: "none", stroke: "#F4F4F2", "stroke-width": 3 }, svg); el("circle", { cx: x, cy: y, r: 6.5 * s, fill: acc }, svg); }
+  else el("path", { d: `M${x - 7},${y - 7}L${x + 7},${y + 7}M${x + 7},${y - 7}L${x - 7},${y + 7}`, stroke: RED, "stroke-width": 3.5 }, svg);
+}
+function passLegend(svg, x0, y, acc) {
+  [["comp", "COMPLETE"], ["inc", "INCOMPLETE"], ["td", "TOUCHDOWN"], ["int", "INTERCEPTION"]].forEach(([k, l], i) => {
+    const x = x0 + i * 135; passDot(svg, x, y - 5, k, acc); txt(svg, x + 16, y, l, { "font-size": 14, "font-weight": 800, fill: C.tick });
+  });
+}
+function heatKey(svg, x, y) {
+  el("rect", { x, y: y - 12, width: 18, height: 13, fill: RED, opacity: 0.75 }, svg); txt(svg, x + 24, y, "WORSE THAN LEAGUE", { "font-size": 14, "font-weight": 800, fill: C.tick });
+  el("rect", { x: x + 200, y: y - 12, width: 18, height: 13, fill: GREEN, opacity: 0.75 }, svg); txt(svg, x + 224, y, "BETTER", { "font-size": 14, "font-weight": 800, fill: C.tick });
+}
+function passchart(c) {
+  const svg = newSvg(640), ao = T(c.off).accent, ad = T(c.def).accent;
+  const L = pfield(svg, 250, { title: `${T(c.off).nick} passes`.toUpperCase(), col: ao });
+  const ord = { inc: 0, comp: 1, int: 2, td: 3 };
+  c.dots.filter(d => d.y <= 42 && d.y >= -8).sort((a, b) => ord[a.r] - ord[b.r]).forEach(d => { const [x, y] = L.P(d.x, d.y); passDot(svg, x, y, d.r, ao); });
+  const R = pfield(svg, 750, { title: `${T(c.def).nick} D: completion % allowed`.toUpperCase(), col: ad });
+  const band = { "BEHIND": [-8, 0], "0-9": [0, 10], "10-19": [10, 20], "20+": [20, 42] }, lane = { left: [-1.1, -0.37], middle: [-0.37, 0.37], right: [0.37, 1.1] };
+  c.cells.forEach(q => {
+    const [d0, d1] = band[q.band], [x0, x1] = lane[q.lane], pts = [R.P(x0, d0), R.P(x1, d0), R.P(x1, d1), R.P(x0, d1)].map(p => p.join(",")).join(" ");
+    const rel = q.comp === null ? 0 : q.comp - q.lg;
+    el("polygon", { points: pts, fill: rel >= 0 ? RED : GREEN, opacity: Math.min(0.8, 0.1 + Math.abs(rel) * 3.2).toFixed(2), stroke: "#0B0B0C", "stroke-width": 3 }, svg);
+    if (`${q.band}|${q.lane}` === c.hl) el("polygon", { points: pts, fill: "none", stroke: "#F4F4F2", "stroke-width": 4 }, svg);
+    const [cx, cy] = R.P((x0 + x1) / 2, (d0 + d1) / 2);
+    txt(svg, cx, cy + 4, q.comp === null ? "–" : Math.round(q.comp * 100) + "%", { "text-anchor": "middle", "font-size": 26, style: "font-family:var(--num)", "font-weight": 600, fill: "#F4F4F2" });
+    txt(svg, cx, cy + 26, `avg ${Math.round(q.lg * 100)}% · ${q.n}`, { "text-anchor": "middle", "font-size": 13, "font-weight": 600, fill: "#D0D0D4" });
+  });
+  passLegend(svg, 40, 630, ao); heatKey(svg, 620, 630);
+  return svg;
+}
+function rcvchart(c) {
+  const svg = newSvg(640), acc = T(c.team).accent;
+  const F = pfield(svg, 500, { title: `${c.name}: every target`.toUpperCase(), col: acc, w0: 300, w1: 200 });
+  const ord = { inc: 0, comp: 1, int: 2, td: 3 };
+  c.dots.filter(d => d.y <= 42 && d.y >= -8).sort((a, b) => ord[a.r] - ord[b.r]).forEach(d => { const [x, y] = F.P(d.x, d.y); passDot(svg, x, y, d.r, acc, 1.2); });
+  passLegend(svg, 230, 630, acc);
+  return svg;
+}
+function runchart(c) {
+  const svg = newSvg(640), ao = T(c.off).accent, ad = T(c.def).accent, n = c.gaps.length;
+  const short = ["L END", "L TKL", "L GRD", "MID", "R GRD", "R TKL", "R END"];
+  const gx = g => -1.1 + (g + 0.5) * 2.2 / n;
+  const L = pfield(svg, 250, { d0: -6, d1: 30, title: `${T(c.off).nick} runs`.toUpperCase(), col: ao, lanes: short });
+  c.dots.forEach(d => {
+    const [x, y] = L.P(gx(d.g) + d.x * 2.2 / n, d.y);
+    if (d.y <= 0) el("circle", { cx: x, cy: y, r: 6, fill: "none", stroke: RED, "stroke-width": 2 }, svg);
+    else if (d.y >= 10) { el("circle", { cx: x, cy: y, r: 10, fill: "none", stroke: "#F4F4F2", "stroke-width": 2.5 }, svg); el("circle", { cx: x, cy: y, r: 6, fill: ao }, svg); }
+    else el("circle", { cx: x, cy: y, r: 6, fill: ao, opacity: 0.85 }, svg);
+  });
+  const R = pfield(svg, 750, { d0: -6, d1: 30, title: `${T(c.def).nick} D: yards per carry allowed`.toUpperCase(), col: ad, lanes: short });
+  c.cells.forEach((q, i) => {
+    const x0 = -1.1 + i * 2.2 / n, x1 = x0 + 2.2 / n, pts = [R.P(x0, 0), R.P(x1, 0), R.P(x1, 30), R.P(x0, 30)].map(p => p.join(",")).join(" ");
+    const rel = q.ypc === null ? 0 : q.ypc - q.lg;
+    el("polygon", { points: pts, fill: rel >= 0 ? RED : GREEN, opacity: Math.min(0.8, 0.1 + Math.abs(rel) * 0.28).toFixed(2), stroke: "#0B0B0C", "stroke-width": 3 }, svg);
+    if (q.gap === c.hl) el("polygon", { points: pts, fill: "none", stroke: "#F4F4F2", "stroke-width": 4 }, svg);
+    const [cx, cy] = R.P((x0 + x1) / 2, 6);
+    txt(svg, cx, cy, q.ypc === null ? "–" : q.ypc.toFixed(1), { "text-anchor": "middle", "font-size": 24, style: "font-family:var(--num)", "font-weight": 600, fill: "#F4F4F2" });
+    txt(svg, cx, cy + 22, `avg ${q.lg.toFixed(1)}`, { "text-anchor": "middle", "font-size": 12, "font-weight": 600, fill: "#D0D0D4" });
+    txt(svg, cx, cy + 40, `${q.n}`, { "text-anchor": "middle", "font-size": 12, "font-weight": 600, fill: "#9C9CA0" });
+  });
+  el("circle", { cx: 46, cy: 625, r: 6, fill: ao }, svg); txt(svg, 60, 630, "1-9 YARDS", { "font-size": 14, "font-weight": 800, fill: C.tick });
+  el("circle", { cx: 176, cy: 625, r: 10, fill: "none", stroke: "#F4F4F2", "stroke-width": 2.5 }, svg); el("circle", { cx: 176, cy: 625, r: 6, fill: ao }, svg);
+  txt(svg, 192, 630, "10+ YARDS", { "font-size": 14, "font-weight": 800, fill: C.tick });
+  el("circle", { cx: 312, cy: 625, r: 6, fill: "none", stroke: RED, "stroke-width": 2 }, svg); txt(svg, 326, 630, "NO GAIN OR LOSS", { "font-size": 14, "font-weight": 800, fill: C.tick });
+  heatKey(svg, 620, 630);
+  return svg;
+}
+function drives(c) {
+  const rowsN = Math.max(...c.teams.map(t => t.rows.length)), rh = 18, h = 130 + rowsN * rh, svg = newSvg(h);
+  const COL = res => /Touchdown/.test(res) ? "TD" : /Field goal/.test(res) ? "FG" : /Punt/.test(res) ? "PUNT" : /End of half|Opp touchdown/.test(res) ? "END" : "TO";
+  c.teams.forEach((tm, k) => {
+    const x0 = k ? 530 : 40, x1 = x0 + 430, X = v => x0 + (x1 - x0) * v / 100, acc = T(tm.team).accent;
+    txt(svg, x0, 36, `${T(tm.team).nick}: ${tm.ppd.toFixed(1)} points per drive`.toUpperCase(), { "font-size": 18, "font-weight": 900, fill: acc });
+    el("rect", { x: x0, y: 54, width: x1 - x0, height: rowsN * rh + 10, fill: "#16161A", rx: 6 }, svg);
+    [0, 20, 50, 80, 100].forEach(v => el("line", { x1: X(v), x2: X(v), y1: 54, y2: 64 + rowsN * rh, stroke: v === 50 ? "#3A3A42" : "#26262C", "stroke-width": v === 50 ? 2 : 1 }, svg));
+    [[0, "OWN GOAL", "start"], [50, "50", "middle"], [100, "END ZONE", "end"]].forEach(([v, l, an]) => txt(svg, X(v), 84 + rowsN * rh, l, { "text-anchor": an, "font-size": 12, "font-weight": 800, fill: C.tick }));
+    let wk = null;
+    tm.rows.forEach((r, i) => {
+      const y = 60 + i * rh, kind = COL(r.res);
+      if (r.wk !== wk) { wk = r.wk; if (i) el("line", { x1: x0, x2: x1, y1: y - 1, y2: y - 1, stroke: "#3A3A42", "stroke-width": 1.5, "stroke-dasharray": "4 4" }, svg); }
+      const fill = kind === "TD" ? acc : kind === "FG" ? acc : kind === "TO" ? RED : "#55555B", op = kind === "FG" ? 0.5 : 1;
+      el("rect", { x: X(Math.min(r.s, r.e)), y: y + 2, width: Math.max(4, Math.abs(X(r.e) - X(r.s))), height: rh - 6, rx: 3, fill, opacity: op }, svg);
+    });
+  });
+  const lg = [["TOUCHDOWN", T(c.teams[0].team).accent, 1], ["FIELD GOAL", T(c.teams[0].team).accent, 0.5], ["TURNOVER OR DOWNS", RED, 1], ["PUNT OR END OF HALF", "#55555B", 1]];
+  lg.forEach(([l, col, op], i) => { const x = 40 + i * 230; el("rect", { x, y: h - 24, width: 22, height: 12, rx: 3, fill: col, opacity: op }, svg); txt(svg, x + 30, h - 13, l, { "font-size": 14, "font-weight": 800, fill: C.tick }); });
+  return svg;
+}
+function fourthmap(c) {
+  const svg = newSvg(620), acc = T(c.team).accent, box = { l: 150, r: W - 30, t: 40, b: 520 }, nx = c.xl.length, ny = c.yl.length;
+  const cw = (box.r - box.l) / nx, chh = (box.b - box.t) / ny, X = i => box.l + i * cw, Y = j => box.t + j * chh;
+  c.bg.forEach(q => {
+    el("rect", { x: X(q.x) + 3, y: Y(q.y) + 3, width: cw - 6, height: chh - 6, rx: 8, fill: "#F4F4F2", opacity: (0.03 + q.go * 0.32).toFixed(2) }, svg);
+    txt(svg, X(q.x) + cw - 12, Y(q.y) + 22, `lg ${Math.round(q.go * 100)}% go`, { "text-anchor": "end", "font-size": 13, "font-weight": 700, fill: "#9C9CA0" });
+  });
+  c.pts.forEach(p => {
+    const x = X(p.x) + cw / 2 + p.j * cw * 0.8, y = Y(p.y) + chh / 2 + 8 + p.k * chh * 0.6;
+    if (p.d === "go") el("circle", { cx: x, cy: y, r: 9, fill: acc, stroke: "#0B0B0C", "stroke-width": 2 }, svg);
+    else if (p.d === "punt") el("circle", { cx: x, cy: y, r: 7, fill: "none", stroke: "#9C9CA0", "stroke-width": 2 }, svg);
+    else el("rect", { x: x - 6, y: y - 6, width: 12, height: 12, fill: "none", stroke: "#F4F4F2", "stroke-width": 2, transform: `rotate(45 ${x} ${y})` }, svg);
+  });
+  c.xl.forEach((l, i) => txt(svg, X(i) + cw / 2, box.b + 28, l, { "text-anchor": "middle", "font-size": 15, "font-weight": 800, fill: C.tick }));
+  c.yl.forEach((l, j) => txt(svg, box.l - 16, Y(j) + chh / 2 + 6, l, { "text-anchor": "end", "font-size": 18, "font-weight": 800, fill: C.tick }));
+  txt(svg, 30, (box.t + box.b) / 2, "YARDS TO GO", { "font-size": 16, "font-weight": 900, fill: C.title, transform: `rotate(-90 30 ${(box.t + box.b) / 2})`, "text-anchor": "middle" });
+  txt(svg, (box.l + box.r) / 2, box.b + 56, "FIELD POSITION → (DRIVING TOWARD THE END ZONE)", { "text-anchor": "middle", "font-size": 15, "font-weight": 900, fill: C.title });
+  [["go", "WENT FOR IT"], ["punt", "PUNTED"], ["fg", "FIELD GOAL"]].forEach(([k, l], i) => {
+    const x = box.l + i * 170, y = 604;
+    if (k === "go") el("circle", { cx: x, cy: y - 5, r: 8, fill: acc }, svg); else if (k === "punt") el("circle", { cx: x, cy: y - 5, r: 7, fill: "none", stroke: "#9C9CA0", "stroke-width": 2 }, svg);
+    else el("rect", { x: x - 6, y: y - 11, width: 12, height: 12, fill: "none", stroke: "#F4F4F2", "stroke-width": 2, transform: `rotate(45 ${x} ${y - 5})` }, svg);
+    txt(svg, x + 16, y, l, { "font-size": 14, "font-weight": 800, fill: C.tick });
+  });
+  return svg;
+}
+const CHARTS = { passchart, runchart, rcvchart, drives, fourthmap, zones, strips, elotrend, pbars, cumline, tline, scatter, pscatter, duel, bars, gaps, splits, trend, pstrip, probbars, waterfall, dist, injuries, units, calib };
 
 
 /* ---------- card ---------- */
