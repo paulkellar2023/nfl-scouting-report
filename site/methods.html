@@ -26,11 +26,11 @@
 
   <nav class="toc" aria-label="On this page">
     <a href="#data">Data</a><a href="#cleaning">Cleaning</a><a href="#metrics">Metrics</a><a href="#adjust">Adjustment</a>
-    <a href="#cards">Cards &amp; keys</a><a href="#model">Model</a><a href="#record">Track record</a><a href="#recaps">Recaps</a><a href="#teams">Teams</a><a href="#projections">Projections</a><a href="#bracket">Bracket</a><a href="#leverage">Leverage</a><a href="#limits">Limits</a><a href="#credits">Credits</a>
+    <a href="#cards">Cards &amp; keys</a><a href="#visuals">Visual guide</a><a href="#colors">Colors</a><a href="#model">Model</a><a href="#luck">Luck</a><a href="#elo">Elo</a><a href="#record">Track record</a><a href="#backfill">Backfill</a><a href="#nextgen">Next Gen &amp; PFR</a><a href="#special">Special teams</a><a href="#tendencies">Tendencies</a><a href="#fantasy">Fantasy</a><a href="#recaps">Recaps</a><a href="#teams">Teams</a><a href="#projections">Projections</a><a href="#bracket">Bracket</a><a href="#leverage">Leverage</a><a href="#limits">Limits</a><a href="#credits">Credits</a>
   </nav>
 
   <section id="data"><h2>Data</h2>
-    <p>Play-by-play, schedules and betting lines, rosters, injury reports, snap counts and FTN charting (play action, motion, blitzers, pass rushers, interception-worthy throws), all from <a href="https://github.com/nflverse">nflverse</a> through the <code>nflreadpy</code> package. Also from nflverse: NFL Next Gen Stats (time to throw, tight-window throws, rush yards over expected, separation and cushion, stacked boxes) and Pro Football Reference charting (pressures, broken and missed tackles), expected fantasy points and weekly player stats from nflverse, and ESPN QBR. The site rebuilds Thursday morning (full report and the Thursday line), then Saturday and Sunday morning (newer injury statuses for the model). Once a game kicks off, its report is frozen.</p>
+    <p>Play-by-play, schedules and betting lines, rosters, injury reports, snap counts and FTN charting (play action, motion, blitzers, pass rushers, interception-worthy throws), all from <a href="https://github.com/nflverse">nflverse</a> through the <code>nflreadpy</code> package. Also from nflverse: NFL Next Gen Stats (time to throw, tight-window throws, rush yards over expected, separation and cushion, stacked boxes) and Pro Football Reference charting (pressures, broken and missed tackles), expected fantasy points and weekly player stats from nflverse, and ESPN QBR. Our Elo ratings use only final scores since 2015. The site rebuilds Thursday morning (full report and the Thursday line), then Saturday and Sunday morning (newer injury statuses for the model). Once a game kicks off, its report is frozen.</p>
   </section>
 
   <section id="cleaning"><h2>Cleaning</h2>
@@ -66,11 +66,14 @@
 
   <section id="cards"><h2>Cards &amp; keys</h2>
     <p>Each card template pairs an offensive measure with the same measure allowed by defenses. The edge for a matchup is z(offense) + z(opposing defense), where each z is the shrunk value over the raw league spread, so noisy stats score lower. Tendency cards (play action, blitz, man coverage) scale the edge by how often the choosing side uses it. Run-gap cards pick the best of 7 gaps, so they pay a fixed penalty for that extra choice. The top cards are shown, with at most 2 per phase. The 3 keys to success per team are the largest edges involving that team, one per phase: "EDGE" if it favors the team, "WATCH" if it does not.</p>
+    <p><b>How many cards:</b> a default view shows 4 or 6 cards, never an odd number. If 5 qualify and a 6th exists, 6 are shown. The Team tab has at most 14 cards in all.</p>
+    <p><b>CARD TYPES filter:</b> the chips above the cards (Field charts, Passing, Rushing, Pressure, Tendencies, Special teams &amp; 4th, Form &amp; luck; on the Players tab, Field charts, Quarterbacks, Rushing, Receiving) start on the types in the ranked default view. Turning a type on adds every card of that type. A "+N" chip shows hidden cards in a type that is already on. RECOMMENDED goes back to the ranked view.</p>
     <p>The "Who has the edge" summary is written by an LLM from these keys and cards only. Every number it uses is checked against the data. If a check fails, a rule-based summary is shown, and the label says so.</p>
   </section>
 
   <section id="model"><h2>Win-probability model</h2>
     <p>A ridge regression on the home team's margin, converted to a win probability with a normal distribution: P(win) = &Phi;(margin / &sigma;). Inputs (home minus away): passing matchup, rushing matchup, starting QB value (EPA per dropback, shrunk toward replacement level), offensive and defensive injury load (players listed Out, Doubtful or Questionable, weighted by recent snap share), rest, and home field. All inputs use only games before the one being predicted. The ridge penalty is picked by leave-one-season-out validation and &sigma; by log loss. The track record is a walk-forward backtest since 2018: each season is predicted by a model trained only on earlier seasons and scored against the closing line.</p>
+    <p>Home-page tiles show the favorite and its win probability (for example "CIN 54%"), or EVEN at 50%. Each matchup shows three numbers: MODEL, MARKET and our <a href="#elo">ELO</a>.</p>
     <p>It is a different lens on the data, not betting advice. The market usually beats it.</p>
   </section>
 
@@ -116,18 +119,59 @@
     </ul>
   </section>
 
-  <section id="fieldcharts"><h2>Field charts</h2>
-    <ul>
-      <li><b>Pass chart:</b> every pass by an offense, placed by air yards (exact) and left, middle or right (play-by-play has no exact sideline spot, so dots are spread within each lane), next to the opposing defense's completion % allowed in 12 zones vs. the league.</li>
-      <li><b>Run chart:</b> every designed run by gap and yards gained, next to the defense's yards per carry allowed by gap.</li>
-      <li><b>Receiver chart:</b> every target to a team's top receiver, by depth and side, with the result.</li>
-      <li><b>Drive chart:</b> every drive from each team's last 2 games, from start to finish, colored by how it ended.</li>
-      <li><b>Pressure map:</b> each quarterback's EPA per dropback under pressure against his average time to throw (or pressure rate faced when Next Gen Stats are missing).</li>
-      <li><b>Fourth-down map:</b> every 4th down by field position and distance, with the league's go-for-it rate in each spot as shading.</li>
-    </ul>
-    <p>Also: a red-zone map (every play snapped inside the 20, and touchdown rate allowed by distance), a down-and-distance grid (success rate by down and distance for the offense and the defense), an explosive-play map (every 20+ yard play as an arrow), a win-probability timeline (each team's last 2 games, plus blown leads and comebacks this season), scoring by quarter, a target tree (top 5 targets by depth, share and EPA), a field-position tug-of-war (average drive start for each team and its opponents), a third-down chart, a penalty breakdown, and play-action and motion splits (FTN charting).</p>
-    <p>Use the CARD TYPES chips above the cards to filter by type. They start on the types in the ranked default view; turning a type on adds every card of that type, and RECOMMENDED goes back to the ranked view.</p>
-    <p>Each matchup shows at least one and at most two field charts on the Team tab (and on the Players tab when one qualifies). When only 4 regular cards qualify, the two best field charts are added after them.</p>
+  <section id="visuals"><h2>Visual guide</h2>
+    <span id="fieldcharts"></span>
+    <p>Every card has one headline, one chart and a source line. The chart always shows the whole league or the whole season, with the two teams in this game highlighted in their matchup colors. The examples below show the card format only: the teams, players and numbers are made up.</p>
+
+    <h3>Comparison charts (most Team and Players cards)</h3>
+    <dl class="vguide">
+      <dt>Duel</dt><dd><b>Shows:</b> one offense measure against the same measure allowed by the opposing defense, each placed on the league range. <b>Read it:</b> the label shows which end is better. When the offense and the defense both sit at the end that favors the offense, the offense has a clear edge. <i>"Bengals average +0.18 EPA per dropback, 4th. Steelers allow +0.09, 25th."</i></dd>
+      <dt>League bars</dt><dd><b>Shows:</b> all 32 teams ranked on one stat, with the league median as a line. Used for special teams EPA, field goals over expected, fourth-down aggressiveness and fantasy points allowed. <i>"Ravens special teams add +2.1 EPA per game, 2nd."</i></dd>
+      <dt>Team scatter</dt><dd><b>Shows:</b> all 32 teams on two axes, usually how often a team does something (x) against how well it works (y), such as blitz rate vs. EPA allowed when blitzing. <b>Read it:</b> the dashed lines are league medians, so each corner is a type of team.</dd>
+      <dt>Strips</dt><dd><b>Shows:</b> each team as a dot on one line per row, for a habit on one row and the opponent's weakness on the next (the pass-or-run lean card). <b>Read it:</b> dots far from center are unusual. <i>"Lions lean on the run (-6% pass rate over expected), 3rd-most run-heavy."</i></dd>
+      <dt>Target zones</dt><dd><b>Shows:</b> 6 zones (short or deep, left, middle or right). On the left is the share of an offense's throws in each zone. On the right is the EPA per throw the defense allows there. The zone the card talks about is outlined.</dd>
+      <dt>Run gaps</dt><dd><b>Shows:</b> EPA per run through each of 7 gaps, from left end to right end, offense vs. defense allowed.</dd>
+      <dt>Form trend</dt><dd><b>Shows:</b> each team's net EPA per play by week. Use it to see whether a team is getting better or worse, not how good it is overall.</dd>
+      <dt>Player strip</dt><dd><b>Shows:</b> every qualifying player on one line (QB EPA per dropback, YAC over expected, QBR). The players in this game are labeled.</dd>
+      <dt>Player scatter</dt><dd><b>Shows:</b> qualifying players on two axes, such as target share vs. EPA per target. On the fantasy tab there is a diagonal line where actual = expected: players above it scored more than their usage suggests.</dd>
+      <dt>Player bars</dt><dd><b>Shows:</b> bars that go left or right from zero, one per player in this game: fantasy points over expected, touchdowns over expected, or change in snap share. <i>"Chase is +4.2 PPR points per game over expected, the biggest gap in this game."</i></dd>
+    </dl>
+
+    <h3>Field charts</h3>
+    <p>Field charts draw plays on a football field instead of on an axis. Each matchup shows at least one and at most two on the Team tab, and on the Players tab when one qualifies. When only 4 regular cards qualify, the two best field charts are added after them.</p>
+    <dl class="vguide">
+      <dt>Pass chart</dt><dd>Every pass by the offense, placed by air yards (exact) and left, middle or right. Play-by-play has no exact sideline spot, so dots are spread inside each lane. Next to it is the opposing defense's completion % allowed in 12 zones vs. the league. <i>"Bengals throw deep to the right on 14% of passes."</i></dd>
+      <dt>Run chart</dt><dd>Every designed run by gap and yards gained, next to the defense's yards per carry allowed in each gap. <i>"Ravens run behind the left guard on 22% of designed runs."</i></dd>
+      <dt>Drive chart</dt><dd>Every drive from each team's last 2 games, from start to end, colored by result. <i>"Bills scored 2.9 points per drive over their last 2 games."</i></dd>
+      <dt>Fourth-down map</dt><dd>Every 4th down by field position and yards to go. The shading is the league's go-for-it rate in each spot, so a "go" dot in a pale area was an aggressive call. <i>"Eagles went for it 11 times on 4th down, about 4 more than a typical team would."</i></dd>
+      <dt>Red-zone map</dt><dd>Every play snapped inside the 20, and touchdown rate allowed by distance. <i>"Chiefs score touchdowns on 68% of red-zone trips, 3rd-highest."</i></dd>
+      <dt>Down-and-distance grid</dt><dd>Success rate by down and distance for the offense, next to the defense. Cells with fewer than 8 plays are left blank. <i>"On 3rd and short, Browns succeed on 41% of plays (league 55%)."</i></dd>
+      <dt>Explosive-play map</dt><dd>Every play of 20+ yards as an arrow from snap to finish. <i>"Dolphins average 4.1 plays of 20+ yards per game, 2nd."</i></dd>
+      <dt>Win-probability timeline</dt><dd>Each team's win probability through its last 2 games, plus blown leads and comebacks this season. <i>"Jets have blown 3 games they led with 80%+ win odds this season."</i></dd>
+      <dt>Scoring by quarter</dt><dd>Average points scored and allowed in each quarter. <i>"49ers outscore opponents by +4.8 points per game in the 3rd quarter."</i></dd>
+      <dt>Field-position tug-of-war</dt><dd>Where each team starts its drives on average, and where its opponents start. <i>"Vikings start drives at their own 33 on average; their opponents start at their 25."</i></dd>
+      <dt>Third-down chart</dt><dd>Every 3rd down by yards to go, made or missed: the offense on top, the opposing defense below. <i>"Commanders convert 47% of 3rd downs, 4th-highest."</i></dd>
+      <dt>Penalty breakdown</dt><dd>Flags per game by type for each team. <i>"Raiders are flagged 7.4 times per game, 1st."</i></dd>
+      <dt>Play-action and motion splits</dt><dd>EPA per dropback with and without play action or pre-snap motion, and how often each team uses it (FTN charting).</dd>
+      <dt>Receiver chart (Players)</dt><dd>Every target to a team's top receiver by depth and side, colored by result. <i>"Jefferson catches 71% of his targets, 11.2 yards downfield on average."</i></dd>
+      <dt>Pressure map (Players)</dt><dd>Each quarterback's EPA per dropback under pressure against his average time to throw, or pressure rate faced when Next Gen Stats are missing.</dd>
+      <dt>Target tree (Players)</dt><dd>A team's top 5 targets by depth, share and EPA per target.</dd>
+    </dl>
+
+    <h3>Model charts (Model tab)</h3>
+    <dl class="vguide">
+      <dt>MODEL · MARKET · ELO bars</dt><dd>Three win probabilities for the same game: our model, the vig-free market and our Elo. When the three disagree, look at the waterfall to see why.</dd>
+      <dt>Factor waterfall</dt><dd>How many points each input moves the projected margin (SHAP). The bars add up to the total under the line, PROJECTED MARGIN.</dd>
+      <dt>Margin distribution</dt><dd>The range of likely final margins from the model. Each side of zero is shaded in the color of the team that wins there, and the larger area is the favorite.</dd>
+      <dt>Units table</dt><dd>Pass offense, rush offense, pass defense and rush defense for both teams, as opponent-adjusted EPA per play vs. league average (right = better). These are the model's inputs, so you can see which unit drives the rating. Starting QBs are listed below.</dd>
+      <dt>Elo trend</dt><dd>Each team's Elo rating game by game.</dd>
+      <dt>Injuries</dt><dd>Players listed Out, Doubtful or Questionable, by snap share. This card is hidden when neither team lists anyone.</dd>
+    </dl>
+    <p>Other pages use the same chart styles: cumulative Brier score and a calibration chart on the track record page, and a weekly line chart on team pages.</p>
+  </section>
+
+  <section id="colors"><h2>Matchup colors</h2>
+    <p>The home team always keeps its main color. If the away team's color looks too much like it, the away team switches to its first alternate color that does not. Two colors count as too similar if they are close in RGB, or if they are in the same hue family (less than 35&deg; apart on the color wheel) and both are saturated. This keeps gold vs. yellow (Ravens vs. Chargers) and orange vs. orange (Bengals vs. Browns) apart. If no alternate color works, the away team is shown in light gray. Some teams' alternates are duller than their real colors.</p>
   </section>
 
   <section id="elo"><h2>Elo</h2>
