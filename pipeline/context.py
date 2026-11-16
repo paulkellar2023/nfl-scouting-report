@@ -57,10 +57,24 @@ def _dist(c1, c2):
     return ((2 + rm / 256) * (r1 - r2) ** 2 + 4 * (g1 - g2) ** 2 + (2 + (255 - rm) / 256) * (b1 - b2) ** 2) ** 0.5
 
 
-def pair(acc_a, alts_a, acc_h, min_dist=120):
-    """Home keeps its accent; the away team takes its first color far enough from it."""
+def _hsv(c):
+    import colorsys
+    return colorsys.rgb_to_hsv(*(int(c[i:i + 2], 16) / 255 for i in (1, 3, 5)))
+
+
+def clash(c1, c2, min_dist=120, min_hue=35):
+    """True when two colors read as the same: close in RGB, or the same hue family (gold vs. yellow) with both saturated."""
+    if _dist(c1, c2) < min_dist:
+        return True
+    (h1, s1, v1), (h2, s2, v2) = _hsv(c1), _hsv(c2)
+    dh = abs(h1 - h2) * 360
+    return min(dh, 360 - dh) < min_hue and min(s1, s2) > 0.35 and min(v1, v2) > 0.25
+
+
+def pair(acc_a, alts_a, acc_h):
+    """Home keeps its accent; the away team takes its first color that does not clash with it."""
     for c in [acc_a] + list(alts_a or []):
-        if _dist(c, acc_h) >= min_dist:
+        if not clash(c, acc_h):
             return c
     return "#E8E8E8"
 

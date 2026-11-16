@@ -69,10 +69,22 @@ function rgbDist(c1, c2) {
   const p = c => [1, 3, 5].map(i => parseInt(c.slice(i, i + 2), 16)), [r1, g1, b1] = p(c1), [r2, g2, b2] = p(c2), rm = (r1 + r2) / 2;
   return Math.sqrt((2 + rm / 256) * (r1 - r2) ** 2 + 4 * (g1 - g2) ** 2 + (2 + (255 - rm) / 256) * (b1 - b2) ** 2);
 }
+function hsv(c) {
+  const [r, g, b] = [1, 3, 5].map(i => parseInt(c.slice(i, i + 2), 16) / 255), mx = Math.max(r, g, b), d = mx - Math.min(r, g, b);
+  let hh = 0;
+  if (d) hh = mx === r ? ((g - b) / d + 6) % 6 : mx === g ? (b - r) / d + 2 : (r - g) / d + 4;
+  return [hh * 60, mx ? d / mx : 0, mx];
+}
+// Same color = close in RGB, or the same hue family (gold vs. yellow) with both colors saturated.
+function clash(c1, c2) {
+  if (rgbDist(c1, c2) < 120) return true;
+  const [h1, s1, v1] = hsv(c1), [h2, s2, v2] = hsv(c2), dh = Math.abs(h1 - h2);
+  return Math.min(dh, 360 - dh) < 35 && Math.min(s1, s2) > 0.35 && Math.min(v1, v2) > 0.25;
+}
 function pairColors(a, h) {
   const A = S.teams[a], H = S.teams[h];
   if (!A || !H) return null;
-  const pick = [A.accent, ...(A.alts || [])].find(c => rgbDist(c, H.accent) >= 120) || "#E8E8E8";
+  const pick = [A.accent, ...(A.alts || [])].find(c => !clash(c, H.accent)) || "#E8E8E8";
   return { [a]: pick, [h]: H.accent };
 }
 const T = t => {
