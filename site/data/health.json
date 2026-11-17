@@ -1,6 +1,6 @@
 {
  "status": "ok",
- "checked": "2026-11-17T01:29Z",
+ "checked": "2026-11-17T01:40Z",
  "warnings": [],
  "errors": [],
  "info": {
@@ -66,10 +66,10 @@
   "games": 14,
   "projected_games": 122,
   "summaries": {
-   "llm": 14,
+   "llm": 10,
    "rule": 0,
    "kept": 0,
-   "cached": 0
+   "cached": 4
   },
   "luck": {
    "turnover_adjusted": true,
