@@ -391,6 +391,7 @@ def main():
                 extras.box_card(X, a_, h_, M, game), extras.box_card(X, h_, a_, M, game),
                 special.st_card(SP, a_, h_, M, game), special.fg_card(SP, a_, h_, M, game), special.fourth_card(SP, a_, h_, M, game),
                 tendencies.zone_card(TX, a_, h_, M, game), tendencies.lean_card(TX, a_, h_, M, game),
+                tendencies.wr1_card(TX, a_, h_, M, game),
                 viz.pass_card(VZ, a_, h_, M, game), viz.run_card(VZ, a_, h_, M, game), viz.drive_card(VZ, a_, h_, M, game),
                 viz.fourth_map_card(VZ, a_, h_, M, game)] + [f(V2, a_, h_, M, game) for f in (
                     viz2.redzone_card, viz2.downs_card, viz2.explosive_card, viz2.wp_card, viz2.quarters_card, viz2.tug_card,

@@ -1158,7 +1158,7 @@ const CAT_TEAM = [["FIELD CHARTS", ["passchart", "runchart", "drives", "fourthma
   ["PASSING", ["pass_epa", "early_down", "depth", "yacoe", "play_action", "man_zone", "shell", "zone", "explosive"]],
   ["RUSHING", ["rush_epa", "stuff", "short_yd", "gap", "box"]],
   ["PRESSURE", ["pressure", "four_man", "blitz"]],
-  ["TENDENCIES", ["lean", "motion", "tackling", "red_zone"]],
+  ["TENDENCIES", ["lean", "wr1", "motion", "tackling", "red_zone"]],
   ["SPECIAL TEAMS & 4TH", ["st", "fg", "fourth"]],
   ["FORM & LUCK", ["form", "luck"]]];
 const CAT_PLAYER = [["FIELD CHARTS", ["rcvchart", "pressmap", "tree"]], ["QUARTERBACKS", ["qb_"]], ["RUSHING", ["rb"]], ["RECEIVING", ["wr_", "rec_"]]];
