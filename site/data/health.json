@@ -1,9 +1,7 @@
 {
- "status": "warn",
- "checked": "2026-11-17T01:22Z",
- "warnings": [
-  "LLM summary fell back to rule-based for 14 games. Last error: used numbers not in the facts []"
- ],
+ "status": "ok",
+ "checked": "2026-11-17T01:29Z",
+ "warnings": [],
  "errors": [],
  "info": {
   "week": 10,
@@ -68,8 +66,8 @@
   "games": 14,
   "projected_games": 122,
   "summaries": {
-   "llm": 0,
-   "rule": 14,
+   "llm": 14,
+   "rule": 0,
    "kept": 0,
    "cached": 0
   },
