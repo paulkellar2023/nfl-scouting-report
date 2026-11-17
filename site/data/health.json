@@ -1,8 +1,8 @@
 {
  "status": "warn",
- "checked": "2026-11-17T01:51Z",
+ "checked": "2026-11-17T01:58Z",
  "warnings": [
-  "LLM summary fell back to rule-based for 3 games. Last error: empty reply (stop_reason=max_tokens, blocks=['thinking'])"
+  "email: only 0/1 about_to_sends created (search the log for 'email:')"
  ],
  "errors": [],
  "info": {
@@ -61,16 +61,16 @@
    "walk": 135
   },
   "email": {
-   "created": 1,
+   "created": 0,
    "total": 1,
    "status": "about_to_send"
   },
   "games": 14,
   "projected_games": 122,
   "summaries": {
-   "llm": 11,
-   "rule": 3,
-   "kept": 0,
+   "llm": 0,
+   "rule": 0,
+   "kept": 14,
    "cached": 0
   },
   "luck": {
