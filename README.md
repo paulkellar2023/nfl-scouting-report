@@ -122,4 +122,4 @@ site/                  static site (GitHub Pages root)
   assets/              logos and headshots, downloaded by the workflow
 ```
 
-Credit for the visual style: @benwolby. Matchup page idea: Ray Carpenter (raycarp.com).
+The win-probability model started from Luke McHugh's NFL prediction model (https://lmchugh17.github.io/nfl-betting-model). Credit for the visual style: @benwolby. Matchup page idea: Ray Carpenter (raycarp.com).

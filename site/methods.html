@@ -26,7 +26,7 @@
 
   <nav class="toc" aria-label="On this page">
     <a href="#data">Data</a><a href="#cleaning">Cleaning</a><a href="#metrics">Metrics</a><a href="#adjust">Adjustment</a>
-    <a href="#cards">Cards &amp; keys</a><a href="#visuals">Visual guide</a><a href="#colors">Colors</a><a href="#model">Model</a><a href="#luck">Luck</a><a href="#elo">Elo</a><a href="#record">Track record</a><a href="#backfill">Backfill</a><a href="#nextgen">Next Gen &amp; PFR</a><a href="#special">Special teams</a><a href="#tendencies">Tendencies</a><a href="#fantasy">Fantasy</a><a href="#recaps">Recaps</a><a href="#teams">Teams</a><a href="#projections">Projections</a><a href="#bracket">Bracket</a><a href="#leverage">Leverage</a><a href="#limits">Limits</a><a href="#credits">Credits</a>
+    <a href="#cards">Cards &amp; keys</a><a href="#visuals">Visual guide</a><a href="#colors">Colors</a><a href="#model">Model</a><a href="#luck">Luck</a><a href="#elo">Elo</a><a href="#record">Track record</a><a href="#backfill">Backfill</a><a href="#nextgen">Next Gen &amp; PFR</a><a href="#special">Special teams</a><a href="#tendencies">Tendencies</a><a href="#fantasy">Fantasy</a><a href="#recaps">Recaps</a><a href="#teams">Teams</a><a href="#projections">Projections</a><a href="#bracket">Bracket</a><a href="#leverage">Leverage</a><a href="#limits">Limits</a><a href="#code">Code</a><a href="#credits">Credits</a>
   </nav>
 
   <section id="data"><h2>Data</h2>
@@ -69,7 +69,7 @@
     <p><b>How many cards:</b> a default view shows 6 cards whenever 6 exist (fewer only when fewer qualify, and then 4, never an odd number). Cards above the relevance floor go first. Open slots go to the best remaining cards, with a strong preference for card types the week's other games are not showing. The Team tab has at most 14 cards in all.</p>
     <p><b>Variety across games:</b> a card type already in the default view of earlier games this week loses up to 15% of its score, in proportion to how many of those games showed it. The cut is small, so it only changes the order when two cards are close; a clearly stronger card still wins. Games are built in schedule order, so earlier games are least affected.</p>
     <p><b>CARD TYPES filter:</b> the chips above the cards (Field charts, Passing, Rushing, Pressure, Tendencies, Special teams &amp; 4th, Form &amp; luck; on the Players tab, Field charts, Quarterbacks, Rushing, Receiving) start on the types in the ranked default view. Turning a type on adds every card of that type. A "+N" chip shows hidden cards in a type that is already on. RECOMMENDED goes back to the ranked view.</p>
-    <p>The "Who has the edge" summary is written by an LLM from these keys and cards only. Every number it uses is checked against the data. If a check fails, a rule-based summary is shown, and the label says so.</p>
+    <p>The "Who has the edge" summary is written by an LLM (Claude) from the keys, the top cards, the players to watch and the model and market numbers only. It has three sentences: the matchup most likely to decide the game, a player angle, and our number against the market. Each summary is checked before it is shown: every number must appear in those facts, it must be three sentences, and it must not reuse the rule-based summary's stock phrases. A reply that fails gets one retry; if that also fails, the rule-based summary is shown and the label says so.</p>
   </section>
 
   <section id="model"><h2>Win-probability model</h2>
@@ -127,7 +127,7 @@
     <h3>Comparison charts (most Team and Players cards)</h3>
     <dl class="vguide">
       <dt>Duel</dt><dd><b>Shows:</b> one offense measure against the same measure allowed by the opposing defense, each placed on the league range. <b>Read it:</b> the label shows which end is better. When the offense and the defense both sit at the end that favors the offense, the offense has a clear edge. <i>"Bengals average +0.18 EPA per dropback, 4th. Steelers allow +0.09, 25th."</i></dd>
-      <dt>League bars</dt><dd><b>Shows:</b> all 32 teams ranked on one stat, with the league median as a line. Used for special teams EPA, field goals over expected, fourth-down aggressiveness and fantasy points allowed. <i>"Ravens special teams add +2.1 EPA per game, 2nd."</i></dd>
+      <dt>League bars</dt><dd><b>Shows:</b> all 32 teams ranked on one stat, with the league median as a dashed line. The value for each team in this game sits in a box over its bar. Used for special teams EPA, field goals over expected, fourth-down aggressiveness and fantasy points allowed. <i>"Ravens special teams add +2.1 EPA per game, 2nd."</i></dd>
       <dt>Team scatter</dt><dd><b>Shows:</b> all 32 teams on two axes, usually how often a team does something (x) against how well it works (y), such as blitz rate vs. EPA allowed when blitzing. <b>Read it:</b> the dashed lines are league medians, so each corner is a type of team.</dd>
       <dt>Strips</dt><dd><b>Shows:</b> each team as a dot on one line per row, for a habit on one row and the opponent's weakness on the next (the pass-or-run lean card). <b>Read it:</b> dots far from center are unusual. <i>"Lions lean on the run (-6% pass rate over expected), 3rd-most run-heavy."</i></dd>
       <dt>Target zones</dt><dd><b>Shows:</b> 6 zones (short or deep, left, middle or right). On the left is the share of an offense's throws in each zone. On the right is the EPA per throw the defense allows there. The zone the card talks about is outlined.</dd>
@@ -211,8 +211,12 @@
     </ul>
   </section>
 
+  <section id="code"><h2>Code</h2>
+    <p>All of the code is public on GitHub: <a href="https://github.com/paulkellar2023/nfl-scouting-report">paulkellar2023/nfl-scouting-report</a>. The Python pipeline is in <code>pipeline/</code>, the site in <code>site/</code>, and every week's generated data in <code>site/data/</code>. The README explains how to run it yourself.</p>
+  </section>
+
   <section id="credits"><h2>Credits</h2>
-    <p>Data: <a href="https://github.com/nflverse">nflverse</a> and FTN charting. Visual style inspired by <a href="https://x.com/benwolby">@benwolby</a>. Matchup page idea from <a href="https://raycarp.com">Ray Carpenter</a>.</p>
+    <p>Data: <a href="https://github.com/nflverse">nflverse</a> and FTN charting. The win-probability model started from Luke McHugh's <a href="https://lmchugh17.github.io/nfl-betting-model">NFL prediction model</a>. Visual style inspired by <a href="https://x.com/benwolby">@benwolby</a>. Matchup page idea from <a href="https://raycarp.com">Ray Carpenter</a>.</p>
   </section>
 </main>
 <footer class="foot-site"><p>The Drill Down · a different lens on the data, not betting advice.</p></footer>
