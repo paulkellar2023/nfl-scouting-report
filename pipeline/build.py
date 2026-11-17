@@ -130,6 +130,51 @@ def with_field(cards, n, pool, kinds, cap=10):
     return out[:max(cap, len(top))], len(top)
 
 
+def bot_of(pool):
+    return next((c for c in pool if c and c["id"].startswith("fourth:") and c.get("source") == special.SRC_BOT), None)
+
+
+def with_bot(cards, n, pool, kinds, force=False):
+    """nfl4th card over the go-rate chart: when the 4th-down map is in the default view and the nfl4th card exists, the
+    nfl4th card takes its slot. force=True puts the nfl4th card in the view anyway (the weakest regular card leaves);
+    used to make sure at least one game per week shows it. Size and field-chart count rules are kept."""
+    bot = bot_of(pool)
+    if bot is None or n == 0:
+        return cards, n
+    top = cards[:n]
+    if bot in top:
+        return cards, n
+    is_f = lambda c: c["id"].split(":")[0] in kinds
+    gm = next((c for c in top if c["id"].startswith("fourthmap:")), None)
+    if gm is not None and sum(is_f(c) for c in top) > 1:
+        top = [c for c in top if c is not gm]  # another field chart stays, so the map can go
+    elif force:
+        regs = [c for c in top if not is_f(c)]
+        if not regs:
+            return cards, n
+        drop = min(regs, key=lambda c: c["score"])
+        top = [c for c in top if c is not drop]
+    else:
+        return cards, n
+    top = [c for c in top if not is_f(c)] + [bot] + [c for c in top if is_f(c)]  # field charts stay last
+    return top + [c for c in cards if c not in top], len(top)
+
+
+def ensure_bot(docs, pools, write):
+    """At least one game per week shows the nfl4th card: if none does, add it to the game where it scores highest."""
+    shown = lambda d: any(c.get("source") == special.SRC_BOT for c in d.get("team_cards", [])[:d.get("team_n", 0)])
+    if not docs or any(shown(d) for d in docs):
+        return
+    cand = [(bot_of(pools.get(d["id"], [])), d) for d in docs]
+    cand = [(b, d) for b, d in cand if b is not None]
+    if not cand:
+        return
+    b, d = max(cand, key=lambda x: x[0]["score"])
+    d["team_cards"], d["team_n"] = with_bot(d["team_cards"] + [b], d["team_n"], [b], FIELD_TEAM, force=True)
+    write(d)
+    log.info("nfl4th card added to %s so the week shows it once", d["id"])
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--season", type=int, default=SEASON)
@@ -289,6 +334,8 @@ def main():
             nf += is_f(c)
         return top + [c for c in cards if c not in top], len(top)
 
+    bot_pool = {}  # game_id -> team card pool, for ensure_bot()
+
     def make(g, mode, label, ko_text=None, neutral=False):
         """mode: live (this week) | proj (future regular-season week) | po (playoff game)."""
         a_, h_ = g.away_team, g.home_team
@@ -319,6 +366,8 @@ def main():
         team_cards, team_n = story.select(pool_t, MIN_TEAM_CARDS, MAX_TEAM_CARDS, (a_, h_), cap=CARD_CAP)
         team_cards, team_n = with_field(team_cards, team_n, [c for c in pool_t if c], FIELD_TEAM, CARD_CAP)
         team_cards, team_n = fill(team_cards, team_n, FIELD_TEAM)
+        team_cards, team_n = with_bot(team_cards, team_n, pool_t, FIELD_TEAM)
+        bot_pool[g.game_id] = [c for c in pool_t if c]
         pc = templates_player.Cards(ptabs, pctx, M, tpls, game)
         tpp = {t.id: t for t in tpls}
         extra_p = [viz.receiver_card(VZ, a_, h_, M, game, pctx, pc._name, pc._img),
@@ -438,6 +487,7 @@ def main():
         _write(wdir / f"{g.game_id}.json", doc)
         docs.append(doc)
         board.append(tile)
+    ensure_bot(docs, bot_pool, lambda d: _write(wdir / f"{d['id']}.json", d))
     board.sort(key=lambda x: -x["rank"])
     if mmeta:
         _write(wdir / "model_meta.json", {k: v for k, v in mmeta.items() if k != "season_walk"})
@@ -462,14 +512,16 @@ def main():
     fut = sorted(int(w) for w in reg["week"].unique() if week < int(w) <= LAST_REG_WEEK)
     n_proj = 0
     for fw in fut:
-        pb = []
+        pb, pdocs = [], []
         pdir = ddir / wname(fw)
         shutil.rmtree(pdir, ignore_errors=True)
         reset_variety()
         for _, g in reg[reg["week"] == fw].iterrows():
             doc, tile = make(g, "proj", f"Projected week {fw}")
             _write(pdir / f"{g.game_id}.json", doc)
+            pdocs.append(doc)
             pb.append(tile)
+        ensure_bot(pdocs, bot_pool, lambda d, pdir=pdir: _write(pdir / f"{d['id']}.json", d))
         pb.sort(key=lambda x: -x["rank"])
         _write(pdir / "games.json", {"season": args.season, "week": fw, "built": built, "span": span, "synthetic": synth_run,
                                      "flags": flags, "projected": True, "through_week": week - 1, "games": pb})
