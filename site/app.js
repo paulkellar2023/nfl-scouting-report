@@ -1268,7 +1268,7 @@ async function bracketView() {
   const pr = (gm, t) => gm.final ? `<em>${gm.final[t]}</em>` : gm.p_home === null || gm.p_home === undefined ? "<em>\u2013</em>" : `<em>${Math.round((t === gm.home ? gm.p_home : 1 - gm.p_home) * 100)}%</em>`;
   const box = gm => `<a class="bg ${gm.actual ? "real" : ""}" href="#/${B.season}/PO/${gm.id}">${[gm.away, gm.home].map(t => `<span class="${gm.winner === t ? "w" : "l"}">${sl(gm, t)}${logoHTML(t)}<b><span class="nk">${esc(T(t).nick)}</span><span class="ab">${t}</span></b>${pr(gm, t)}</span>`).join("")}</a>`;
   const col = (code, conf) => { const r = B.rounds.find(x => x.code === code); return r ? r.games.filter(gm => gm.conf === conf).map(box).join("") : ""; };
-  const bye = c => { const s1 = (B.seeds[c] || [])[0]; return s1 ? `<div class="bye"><span><i>1</i>${logoHTML(s1.team)}<b>${esc(T(s1.team).nick)}</b><em>BYE</em></span></div>` : ""; };
+  const bye = c => { const s1 = (B.seeds[c] || [])[0]; return s1 ? `<div class="bye"><span><i>1</i>${logoHTML(s1.team)}<b><span class="nk">${esc(T(s1.team).nick)}</span><span class="ab">${s1.team}</span></b><em>BYE</em></span></div>` : ""; };
   const rcol = (code, c, label, side) => `<div class="bcol ${side} r-${code}"><h3><b>${c}</b> ${label}</h3><div class="bgames">${code === "WC" ? bye(c) : ""}${col(code, c)}</div></div>`;
   const sb = B.rounds.find(x => x.code === "SB");
   const confs = ["AFC", "NFC"].filter(c => B.seeds[c]);
@@ -1277,9 +1277,13 @@ async function bracketView() {
   cols.push(`<div class="bcol sb"><h3><b>SUPER BOWL</b></h3><div class="bgames">${sb ? sb.games.map(box).join("") : '<p class="empty">Not set yet</p>'}
     ${B.champion ? `<p class="champ">${logoHTML(B.champion)}<b>${esc(T(B.champion).nick)}</b><small>${B.status === "final" ? "CHAMPION" : "MODEL FAVORITE"}</small></p>` : ""}</div></div>`);
   if (confs[1]) cols.push(rcol("CON", confs[1], "CONFERENCE", "R"), rcol("DIV", confs[1], "DIVISIONAL", "R"), rcol("WC", confs[1], "WILD CARD", "R"));
+  // Compact bracket for tablets and phones: each conference as rows of rounds, then the Super Bowl.
+  const crow = (code, c, label) => { const g = (code === "WC" ? bye(c) : "") + col(code, c); return g ? `<div class="bkr"><h4>${label}</h4><div class="bkg r-${code}">${g}</div></div>` : ""; };
+  const compact = `<div class="bk-compact">${confs.map(c => `<section class="bkc"><h3><b>${c}</b></h3>${crow("WC", c, "WILD CARD")}${crow("DIV", c, "DIVISIONAL")}${crow("CON", c, "CONFERENCE")}</section>`).join("")}
+    <section class="bkc sb"><h3><b>SUPER BOWL</b></h3><div class="bkg r-SB">${sb ? sb.games.map(box).join("") : '<p class="empty">Not set yet</p>'}${B.champion ? `<p class="champ">${logoHTML(B.champion)}<b>${esc(T(B.champion).nick)}</b><small>${B.status === "final" ? "CHAMPION" : "MODEL FAVORITE"}</small></p>` : ""}</div></section></div>`;
   app.innerHTML = `<div class="board-head"><h1>Playoff <span>${B.status === "final" ? "bracket" : "picture"}</span></h1></div>
     <p class="board-note">${B.status === "final" ? "Regular season is over. Real matchups and results are shown; rounds not yet set are filled with the model favorite." : (B.seed_basis === "projected" ? `Seeds from projected final records (10,000 simulations of the rest of the season, data through week ${B.through_week}); every round is filled by the model favorite.` : `If the season ended today: seeds from current standings (through week ${B.through_week}), every later round filled by the model favorite. Tiebreakers are approximate.`)} Click any matchup for its full cards. Model odds are luck-adjusted: ratings are corrected for the injuries each team played through${B.luck && B.luck.turnover_adjusted ? " and fumble-recovery luck is removed" : ""}, and every team is projected at full health. <a href="methods.html#luck">How it works</a></p>
-    <div class="bracket">${cols.join("")}</div>
+    <div class="bracket">${cols.join("")}</div>${compact}
     <section class="log"><h2>Seeds</h2><div class="seed-grid">${["AFC", "NFC"].filter(c => B.seeds[c]).map(c => `<div class="tbl-wrap"><table class="tbl seeds">
       <thead><tr><th>${c}</th><th>TEAM</th><th>W-L</th><th title="Pythagorean expected record from points scored and allowed">EXP W-L</th><th title="Average final record in 10,000 season simulations">PROJ</th></tr></thead><tbody>
       ${B.seeds[c].map(sd => { const x = (L && L.teams[sd.team]) || {}, g = (x.w ?? 0) + (x.l ?? 0) + (x.t ?? 0);

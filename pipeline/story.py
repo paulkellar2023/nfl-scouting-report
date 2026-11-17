@@ -397,28 +397,77 @@ def select(cards, lo, hi, teams, cap=10):
     return out, n
 
 
-def keys_for(team, cands, specials, M):
-    """Top 3 keys by |edge|, at most one per phase so correlated stats (pressure, four-man rush) don't repeat."""
+FAMILY = {"four_man": "pressure", "early_down": "pass_epa"}  # near-duplicate stats count as one
+GEN_W, GEN_MIN = 1.3, 1.0  # one team's own z is about half a matchup edge (two z's), so scale it up; skip ordinary traits
+
+
+def _general(t, team, M):
+    """A team's own strength or weakness on one stat, whoever the opponent is. Scored like a matchup edge."""
     rows = []
-    for c in cands:
-        if team in (c["a"], c["b"]):
-            rows.append((abs(c["edge"]), c["phase"], key_line(c, team, M)))
-    for s in specials:
-        if s and "_key" in s and team in s["_key"]:
-            ph, det = s["_key"][team]
-            rows.append((abs(s["edge"] or 0), s["phase"], {"phrase": ph, "detail": det, "favorable": s["owner"] == team,
-                                                           "id": s["id"].split(":")[0]}))
-    rows.sort(key=lambda r: -r[0])
-    out, phases = [], []
-    for _, ph, k in rows:
-        if ph in phases:
+    for side, tab, sgn in (("off", t.off, t.sign), ("def", t.deff, -t.sign)):
+        z = S.zscore(tab, team, sgn)
+        if np.isnan(z) or abs(z) < GEN_MIN:
             continue
-        phases.append(ph)
-        out.append(k)
-        if len(out) == 3:
-            break
-    if out and not any(k["favorable"] for k in out):
-        fav = next((k for e, ph, k in rows if k["favorable"] and e > 0.5 and ph not in phases[:-1]), None)
-        if fav:
-            out[-1] = fav
+        good = z > 0
+        r, n = S.rank(tab, team, sgn), _count(tab)
+        v = fmt(_val(tab, team), t.fmt)
+        if side == "off":
+            phrase = t.keys[0] if good else t.keys[1]
+            detail = f"{M[team]['label']} ranks {ordinal(r)} of {n} in {t.label} ({v}), "
+        else:
+            phrase = t.keys[2] if good else t.keys[3]
+            detail = f"{poss(M[team]['label'])} defense ranks {ordinal(r)} of {n} in {t.label} ({v} {t.def_word}), "
+        detail += "one of its biggest strengths this season." if good else "a weak spot all season."
+        rows.append((GEN_W * t.weight * abs(z), t.phase, {"phrase": phrase, "detail": detail, "favorable": bool(good),
+                                                          "id": t.id, "side": side, "general": True}))
+    return rows
+
+
+def keys_pair(a, b, cands, specials, tpls, M):
+    """3 keys per team. A stat is used once per game, so the two teams never get the mirror image of the same
+    matchup. Candidates are matchup edges plus each team's own strengths and weaknesses; each team gets at
+    least one of its own when one is strong enough, and at most one key per phase."""
+    pool = {a: [], b: []}
+    for c in cands:
+        for team in (a, b):
+            pool[team].append((abs(c["edge"]), c["phase"], key_line(c, team, M)))
+    for s_ in specials:
+        if s_ and "_key" in s_:
+            for team in (a, b):
+                if team in s_["_key"]:
+                    ph, det = s_["_key"][team]
+                    pool[team].append((abs(s_["edge"] or 0), s_["phase"], {"phrase": ph, "detail": det,
+                                       "favorable": s_["owner"] == team, "id": s_["id"].split(":")[0]}))
+    for t in tpls:
+        for team in (a, b):
+            pool[team] += _general(t, team, M)
+    rows = sorted([(sc, team, ph, k) for team in (a, b) for sc, ph, k in pool[team]], key=lambda r: -r[0])
+    out, phases, used = {a: [], b: []}, {a: set(), b: set()}, set()
+
+    fam = lambda k: FAMILY.get(k["id"], k["id"])
+
+    def ok(team, ph, k):
+        return fam(k) not in used and ph not in phases[team] and k["phrase"] not in [x["phrase"] for x in out[team]]
+
+    def take(team, ph, k):
+        out[team].append(k), phases[team].add(ph), used.add(fam(k))
+
+    for sc, team, ph, k in rows:
+        if len(out[team]) < 3 and ok(team, ph, k):
+            take(team, ph, k)
+    for team in (a, b):
+        ks = out[team]
+        if ks and not any(k.get("general") for k in ks):
+            last = ks.pop()
+            phases[team].discard(next(ph for _, t_, ph, k in rows if k is last))
+            used.discard(fam(last))
+            g = next(((ph, k) for sc, t_, ph, k in rows if t_ == team and k.get("general") and ok(team, ph, k)), None)
+            take(team, *(g or (next(ph for _, t_, ph, k in rows if k is last), last)))
+        if ks and not any(k["favorable"] for k in ks):
+            g = next(((ph, k) for sc, t_, ph, k in rows if t_ == team and k["favorable"] and sc > 0.5
+                      and fam(k) not in used and k["phrase"] not in [x["phrase"] for x in ks]), None)
+            if g:
+                used.discard(fam(ks[-1]))
+                ks[-1] = g[1]
+                used.add(fam(g[1]))
     return out

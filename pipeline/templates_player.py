@@ -274,6 +274,7 @@ class Cards:
         hl = {p for p, _ in pr}
         pts = [self._pt(p, p in hl, x=r.tgt_share, y=r.air_share) for p, r in sh.iterrows()]
         wt = self.T.get("wopr")
+        wt = wt[wt.index.isin(sh.index)] if wt is not None else None  # rank among the same 30+ target receivers
         if wt is not None and own in wt.index:
             l2 = (f"His WOPR ({wt.loc[own, 'value']:.2f}) ranks {ordinal(_rank(wt, own))} of {int(wt['value'].notna().sum())}. "
                   + l2)

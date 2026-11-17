@@ -288,7 +288,7 @@ def main():
         player_cards, player_n = templates_player.select(pool_p, MIN_PLAYER_CARDS, MAX_PLAYER_CARDS, cap=CARD_CAP)
         player_cards, player_n = with_field(player_cards, player_n, [c for c in pool_p if c], FIELD_PLAYER, CARD_CAP)
         fantasy_cards, fantasy_n = fantasy.select(fantasy.Fantasy(ptabs, pctx, M, tpls, game).all(a_, h_))
-        keys = {t: story.keys_for(t, cands, specials, M) for t in (a_, h_)}
+        keys = story.keys_pair(a_, h_, cands, specials, tpls, M)
         heat = []
         for c in cands:
             if c["id"] in ("pass_epa", "rush_epa"):
@@ -343,7 +343,7 @@ def main():
         prev = prev_doc.get(g.game_id, {})
         if mode != "live":
             summ, summ_src = summary.fallback(facts), "rule"
-        elif prev.get("summary_hash") == fh and prev.get("summary"):
+        elif prev.get("summary_hash") == fh and prev.get("summary") and prev.get("summary_src") == "llm":
             summ, summ_src = prev["summary"], prev.get("summary_src", "llm")
             sum_counts["cached"] += 1
         elif args.no_llm:
@@ -510,7 +510,7 @@ def main():
     if not board:
         health.error("no games written")
     if os.environ.get("ANTHROPIC_API_KEY") and not args.no_llm and sum_counts["rule"]:
-        health.warn(f"LLM summary fell back to rule-based for {sum_counts['rule']} games (search the log for 'summary:')")
+        health.warn(f"LLM summary fell back to rule-based for {sum_counts['rule']} games. Last error: {summary.LAST_ERR or 'unknown'}")
     log.info("health: %s", health.write(site))
 
 

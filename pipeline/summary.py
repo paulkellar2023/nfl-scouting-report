@@ -30,7 +30,7 @@ def _nums(s):
     return {n.lstrip("+-").rstrip("0").rstrip(".") or "0" for n in _NUM.findall(s)}
 
 
-VERSION = "6"  # bump to regenerate cached summaries after a prompt or fallback change
+VERSION = "7"  # bump to regenerate cached summaries after a prompt or fallback change
 
 
 def facts_hash(facts):
@@ -80,7 +80,7 @@ def fallback(facts):
         parts.append(f"Under center, {qbs[0]['name']} ranks {_ord(qbs[0]['rank'])} of {qbs[0]['of']} in EPA per dropback")
     if xf:
         d = xf["detail"].rstrip(".")
-        parts.append(f"x-factor: {xf['headline'].rstrip('.')}" + (f", and {d[0].lower() + d[1:] if d.startswith('The ') else d}" if d else ""))
+        parts.append(f"x-factor: {xf['headline'].rstrip('.')}" + (f", and {d[0].lower() + d[1:] if d.startswith(('The ', 'His ')) else d}" if d else ""))
     if parts:
         out.append("; ".join(parts) + ".")
     m = facts.get("model")
@@ -90,7 +90,11 @@ def fallback(facts):
     return " ".join(out)
 
 
+LAST_ERR = None  # last failure reason, shown in the build health warnings
+
+
 def summarize(facts):
+    global LAST_ERR
     key = os.environ.get("ANTHROPIC_API_KEY")  # GitHub Actions repository secret
     if not key:
         log.warning("summary: ANTHROPIC_API_KEY not set, using rule-based fallback")
@@ -107,7 +111,9 @@ def summarize(facts):
             bad = _nums(text) - allowed
             if text and not bad:
                 return text, "llm"
+            LAST_ERR = f"used numbers not in the facts {sorted(bad)[:5]}"
             log.warning("summary: attempt %d used numbers not in facts %s", attempt + 1, sorted(bad))
     except Exception as e:  # never fail the build on the summary
+        LAST_ERR = f"{type(e).__name__}: {str(e)[:200]}"
         log.warning("summary: API call failed (%s: %s), using fallback", type(e).__name__, e)
     return fallback(facts), "rule"
