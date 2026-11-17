@@ -1179,18 +1179,18 @@ async function matchup(id, tab, focus) {
   const stake = t => g.leverage.p_playoffs && g.leverage.p_playoffs[t] !== undefined
     ? `<span class="chip">${t} playoff odds ${Math.round(g.leverage.p_playoffs[t] * 100)}% · swing ${Math.round(Math.abs(g.leverage.by_team[t] || 0) * 100)} pts</span>` : "";
   app.innerHTML = `<section class="hero" style="--a:${a.accent};--h:${hm.accent}">${wxHTML(g.weather, true)}
-      <div class="side">${logoHTML(g.away)}<div><h2>${esc(a.nick)}</h2><small>${esc(a.name)}</small></div></div>
+      <div class="side">${teamLogoLink(g.away)}<div><h2>${esc(a.nick)}</h2><small>${esc(a.name)}</small></div></div>
       <div class="mid"><div class="k">${esc(g.kickoff)}${g.primetime ? " · PRIMETIME" : ""}${g.backfill ? " · BACKFILLED (PRE-WEEK DATA ONLY)" : g.after_kickoff ? " · BUILT AFTER KICKOFF (PRE-WEEK DATA ONLY)" : ""}</div>
         <div class="ln">${g.line ? esc(g.line.text) : "Line pending"}</div><div class="imp">${esc(imp)}${g.backfill && g.line ? " · closing line" : g.line && g.line_asof ? ` · line as of ${esc(g.line_asof.slice(5, 10).replace("-", "/"))}` : ""}</div>
         ${g.model ? numsHTML({ p_home: g.model.p_home, mkt: g.model.market ? g.model.market.p_home : null, elo: g.elo ? g.elo.p_home : null }, g.home, g.away) : ""}
         <div class="stakes">${stake(g.away)}${stake(g.home)}</div>${g.mode && g.mode !== "live" ? "" : '<button type="button" class="share-btn">COPY SHARE LINK</button>'}</div>
-      <div class="side home">${logoHTML(g.home)}<div><h2>${esc(hm.nick)}</h2><small>${esc(hm.name)}</small></div></div>
+      <div class="side home">${teamLogoLink(g.home)}<div><h2>${esc(hm.nick)}</h2><small>${esc(hm.name)}</small></div></div>
     </section>
-    ${rc ? `<section class="recap"><b>FINAL</b><div class="score">${[g.away, g.home].map(t => `<span class="${rc.winner === t ? "w" : ""}">${logoHTML(t)}<em>${rc.final[t]}</em></span>`).join("")}</div>
+    ${rc ? `<section class="recap"><b>FINAL</b><div class="score">${[g.away, g.home].map(t => `<span class="${rc.winner === t ? "w" : ""}">${teamLogoLink(t)}<em>${rc.final[t]}</em></span>`).join("")}</div>
       <p>${esc(rc.text)}</p><div class="calls">${call("MODEL", rc.model)}${call("MARKET", rc.market)}</div></section>` : ""}
     ${g.summary ? `<p class="summary"><b>WHO HAS THE EDGE</b>${esc(g.summary)}<span class="src">${g.summary_src === "llm" ? "AI summary of the keys and cards below, not betting advice." : "Rule-based summary of the keys below."}</span></p>` : ""}
     <section class="keys">${[g.away, g.home].map(t => `<div class="keyset" style="--acc:${T(t).accent}">
-      <h3>${logoHTML(t)}${esc(T(t).nick)}: 3 keys to success${rc && rc.keys_won[t] && rc.keys_won[t][1] ? ` <small>won ${rc.keys_won[t][0]} of ${rc.keys_won[t][1]}</small>` : ""}</h3><ol>${(g.keys[t] || []).map((k, i) => `<li><i>${i + 1}</i><div>
+      <h3>${teamLogoLink(t)}${esc(T(t).nick)}: 3 keys to success${rc && rc.keys_won[t] && rc.keys_won[t][1] ? ` <small>won ${rc.keys_won[t][0]} of ${rc.keys_won[t][1]}</small>` : ""}</h3><ol>${(g.keys[t] || []).map((k, i) => `<li><i>${i + 1}</i><div>
         <b>${esc(k.phrase)}<em class="${k.favorable ? "up" : "dn"}">${k.favorable ? "EDGE" : "WATCH"}</em></b><p>${esc(k.detail)}</p>${keyRes(rc, t, i)}</div></li>`).join("")}</ol></div>`).join("")}</section>
     <div class="tabs"><div role="tablist"><button role="tab" data-tab="team">TEAM</button><button role="tab" data-tab="players">PLAYERS</button>${(g.fantasy_cards || []).length ? '<button role="tab" data-tab="fantasy">FANTASY</button>' : ""}${(g.model_cards || []).length ? '<button role="tab" data-tab="model">MODEL</button>' : ""}</div>
       <label class="topn">SHOW <select aria-label="How many cards to show"><option value="auto">Top picks</option><option value="10">Top 10</option></select></label></div>
@@ -1260,8 +1260,8 @@ function outcomeFlow(c) {
   const o = c.o, m = T(c.team), svg = newSvg(620), x0 = 160, xm = 440, x1 = 680, top = 120, H0 = 380, GAP = 14;
   const OUT = "#8A6A4A";
   const rows = [
-    ["champ", "Win Super Bowl", m.accent], ["r_sb", "Lose Super Bowl", m.accent], ["r_conf", "Lose conf. final", m.accent],
-    ["r_div", "Lose divisional", m.accent], ["r_wc", "Lose wild card", m.accent],
+    ["champ", "Win Super Bowl", m.accent], ["r_sb", "Lose Super Bowl", m.accent], ["r_conf", "Out in conf. final", m.accent],
+    ["r_div", "Out in divisional", m.accent], ["r_wc", "Out in wild card", m.accent],
     ["p11_18", "Pick 11\u201318", OUT], ["p4_10", "Pick 4\u201310", OUT], ["top3", "Top-3 pick", OUT]];
   const pct = v => v <= 0 ? "0%" : v < 0.01 ? "<1%" : Math.round(v * 100) + "%";
   const defs = $("defs", svg);
@@ -1309,6 +1309,8 @@ function outcomeFlow(c) {
   txt(svg, xb, top + H0 + 84, "MISS PLAYOFFS", { "text-anchor": "middle", "font-size": 20, "font-weight": 900, fill: "#C9A27E", "letter-spacing": 2, ...HALO });
   return svg;
 }
+// A team logo that opens that team's page (matchup page: header, final score, keys).
+const teamLogoLink = t => `<a class="tlogo" href="#/team/${t}" title="${esc(T(t).name)}: team page" aria-label="${esc(T(t).name)} team page">${logoHTML(t)}</a>`;
 function chartBox(title, sub, svg, note) {
   const b = h("article", { class: "card wide" });
   b.innerHTML = `<h3 class="t1">${esc(title)}</h3><p class="sub">${esc(sub)}</p><div class="chart"></div>${note ? `<div class="foot" style="display:block"><small>${esc(note)}</small></div>` : ""}`;
@@ -1429,7 +1431,8 @@ async function teamView(t) {
     </tbody></table></div><p class="board-note">Only weeks with a report on this site are listed. PROJ = projected matchup, model only.</p></section>`;
   if (x.outcomes) {
     const oc = x.outcomes, seedTxt = `Bye ${pctS(oc.bye)} · division title without a bye ${pctS(oc.div)} · wild card ${pctS(oc.wc)}`;
-    $(".team-cards", app).appendChild(chartBox("End-of-season outcomes", `${m.nick}: how the season ends across 10,000 simulations of the remaining games. ${seedTxt}.`,
+    const reach = `Reach the divisional round ${pctS(oc.r_div + oc.r_conf + oc.r_sb + oc.champ)} · conference final ${pctS(oc.r_conf + oc.r_sb + oc.champ)} · Super Bowl ${pctS(oc.r_sb + oc.champ)}`;
+    $(".team-cards", app).appendChild(chartBox("End-of-season outcomes", `${m.nick}: where the season ends across 10,000 simulations of the remaining games (each season counts once, in the round it ends). ${seedTxt}. ${reach}.`,
       outcomeFlow({ team: t, o: oc, record: `${x.w}-${x.l}${x.t ? "-" + x.t : ""}` }),
       "Playoff games use the same ratings as the season simulations; higher seed at home, Super Bowl neutral. Draft slots: non-playoff teams pick 1-18 by fewest wins (tiebreaks approximate)."));
   }

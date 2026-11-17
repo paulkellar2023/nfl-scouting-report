@@ -432,3 +432,8 @@ main { flex: 1; width: 100%; max-width: 1520px; margin: 0 auto; padding: 24px 16
 .hero .wx.full svg { width: 17px; height: 17px; }
 .hero .wx.full b { font-size: 14px; }
 @media (max-width: 760px) { .hero .wx.full { position: static; justify-self: end; margin-bottom: -6px; padding: 3px 8px; } }
+
+/* team logos on the matchup page link to the team page */
+.tlogo { display: inline-flex; flex: none; border-radius: 50%; transition: transform .15s ease, filter .15s ease; }
+.tlogo:hover, .tlogo:focus-visible { transform: scale(1.08); filter: drop-shadow(0 0 10px rgba(255,255,255,.25)); }
+.tlogo:focus-visible { outline: 2px solid var(--brand); outline-offset: 3px; }
