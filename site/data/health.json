@@ -1,7 +1,9 @@
 {
- "status": "ok",
- "checked": "2026-11-17T03:10Z",
- "warnings": [],
+ "status": "warn",
+ "checked": "2026-11-17T03:26Z",
+ "warnings": [
+  "email: only 0/1 about_to_sends created (search the log for 'email:')"
+ ],
  "errors": [],
  "info": {
   "week": 10,
@@ -69,17 +71,17 @@
    "walk": 135
   },
   "email": {
-   "created": 1,
+   "created": 0,
    "total": 1,
    "status": "about_to_send"
   },
   "games": 14,
   "projected_games": 122,
   "summaries": {
-   "llm": 5,
+   "llm": 0,
    "rule": 0,
-   "kept": 0,
-   "cached": 9
+   "kept": 14,
+   "cached": 0
   },
   "luck": {
    "turnover_adjusted": true,
