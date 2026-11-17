@@ -1,7 +1,9 @@
 {
- "status": "ok",
- "checked": "2026-11-17T01:40Z",
- "warnings": [],
+ "status": "warn",
+ "checked": "2026-11-17T01:51Z",
+ "warnings": [
+  "LLM summary fell back to rule-based for 3 games. Last error: empty reply (stop_reason=max_tokens, blocks=['thinking'])"
+ ],
  "errors": [],
  "info": {
   "week": 10,
@@ -66,10 +68,10 @@
   "games": 14,
   "projected_games": 122,
   "summaries": {
-   "llm": 10,
-   "rule": 0,
+   "llm": 11,
+   "rule": 3,
    "kept": 0,
-   "cached": 4
+   "cached": 0
   },
   "luck": {
    "turnover_adjusted": true,
