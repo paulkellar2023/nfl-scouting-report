@@ -295,7 +295,7 @@ def main():
     e = plays[plays["eff"]]
     o_all, d_all = stats.opp_adjust(e, "epa")
     lev = leverage.simulate(sched, M, week, leverage.ratings(o_all, d_all))
-    lev_teams, lev_proj = lev.pop("_teams", {}), lev.pop("_proj", {})
+    lev_teams, lev_proj, lev_out = lev.pop("_teams", {}), lev.pop("_proj", {}), lev.pop("_outcomes", {})
 
     site = Path(args.site)
     ddir = site / "data" / str(args.season)
@@ -628,7 +628,7 @@ def main():
     # ---------- recaps, record, league, share pages ----------
     n_graded = record.grade_weeks(site, args.season, week, sched, plays, tpls, M, synth_run)
     n_pub, n_walk = record.build(site, args.season, week, mmeta, synth_run, E.pre)
-    league.build(site, args.season, week, plays, sched, tpls, lev_teams, lev_proj, M, pctx["qb"], pctx["names"], synth_run)
+    league.build(site, args.season, week, plays, sched, tpls, lev_teams, lev_proj, M, pctx["qb"], pctx["names"], synth_run, lev_out)
     for od in ddir.glob("wk*"):
         if od != wdir and od.name[2:].isdigit() and (od / "games.json").exists() \
                 and not json.loads((od / "games.json").read_text()).get("projected"):

@@ -26,7 +26,7 @@ def _ranks(v):
 PYTH_EXP = 2.37
 
 
-def build(site, season, week, plays, sched, tpls, lev_teams, lev_proj, M, qb, names, synthetic):
+def build(site, season, week, plays, sched, tpls, lev_teams, lev_proj, M, qb, names, synthetic, outcomes=None):
     teams = sorted(M)
     net_now, net_then = _net(plays, week), _net(plays, week - TREND_WEEKS)
     r_now, r_then = _ranks(net_now), (_ranks(net_then) if net_then else {})
@@ -63,7 +63,7 @@ def build(site, season, week, plays, sched, tpls, lev_teams, lev_proj, M, qb, na
                   "net": {"v": round(float(net_now[t]), 4) if t in net_now else None, "r": r_now.get(t),
                           "chg": (r_then[t] - r_now[t]) if t in r_then and t in r_now else None},
                   "p_playoffs": lev_teams.get(t), "qb": names.get(qb.get(t), None),
-                  "proj": lev_proj.get(t), "xw": None if xw is None else round(xw, 1),
+                  "proj": lev_proj.get(t), "outcomes": (outcomes or {}).get(t), "xw": None if xw is None else round(xw, 1),
                   "luck": None if xw is None else round(wins - xw, 1),
                   "units": units, "trend": trend, "games": []}
     # game log from every built week (same data type as this build)

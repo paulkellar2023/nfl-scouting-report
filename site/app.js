@@ -1254,6 +1254,61 @@ function getSeason(file) {
   if (!seasonCache[p]) seasonCache[p] = getJSON(p).catch(e => { delete seasonCache[p]; throw e; });
   return seasonCache[p];
 }
+// End-of-season outcomes: record on the left, split into playoffs vs. out, then how far a playoff run goes and
+// which draft slot a miss lands in. Widths are probabilities from the 10,000 season simulations.
+function outcomeFlow(c) {
+  const o = c.o, m = T(c.team), svg = newSvg(620), x0 = 160, xm = 440, x1 = 680, top = 120, H0 = 380, GAP = 14;
+  const OUT = "#8A6A4A";
+  const rows = [
+    ["champ", "Win Super Bowl", m.accent], ["r_sb", "Lose Super Bowl", m.accent], ["r_conf", "Lose conf. final", m.accent],
+    ["r_div", "Lose divisional", m.accent], ["r_wc", "Lose wild card", m.accent],
+    ["p11_18", "Pick 11\u201318", OUT], ["p4_10", "Pick 4\u201310", OUT], ["top3", "Top-3 pick", OUT]];
+  const pct = v => v <= 0 ? "0%" : v < 0.01 ? "<1%" : Math.round(v * 100) + "%";
+  const defs = $("defs", svg);
+  [["po", m.accent], ["out", OUT]].forEach(([id, col]) => {
+    const g = el("linearGradient", { id: `of-${id}-${c.team}`, x1: 0, x2: 1, y1: 0, y2: 0 }, defs);
+    el("stop", { offset: "0%", "stop-color": col, "stop-opacity": 0.25 }, g);
+    el("stop", { offset: "100%", "stop-color": col, "stop-opacity": 0.95 }, g);
+  });
+  // left stack: playoffs on top, then out
+  let yl = top, yr = top - GAP * 0;
+  const shown = rows.filter(([k]) => o[k] > 0);
+  const nGaps = Math.max(0, shown.length - 1), Hr = H0 + nGaps * GAP;
+  yr = top + (H0 - Hr) / 2;
+  const labels = [];
+  shown.forEach(([k, lab, col], i) => {
+    const h = Math.max(1.5, o[k] * H0), po = k.startsWith("r_") || k === "champ";
+    const fill = `url(#of-${po ? "po" : "out"}-${c.team})`;
+    const a0 = yl, a1 = yl + h, b0 = yr, b1 = yr + h, mx = (xm + x1) / 2;
+    el("path", { d: `M${x0},${a0} L${xm},${a0} C${mx},${a0} ${mx},${b0} ${x1},${b0} L${x1},${b1} C${mx},${b1} ${mx},${a1} ${xm},${a1} L${x0},${a1} Z`,
+      fill, stroke: "none", opacity: o[k] < 0.01 ? 0.6 : 1 }, svg);
+    el("rect", { x: x1, y: b0, width: 8, height: h, fill: col }, svg);
+    labels.push({ y: (b0 + b1) / 2, v: pct(o[k]), lab, col, ny: b0 + h / 2 });
+    yl = a1; yr = b1 + GAP;
+  });
+  // labels: keep 52 units apart, inside the chart
+  const SP = 40;  // number and label on one line
+  for (let i = 1; i < labels.length; i++) labels[i].y = Math.max(labels[i].y, labels[i - 1].y + SP);
+  const over = labels.length ? labels[labels.length - 1].y - 580 : 0;
+  if (over > 0) labels.forEach(L => { L.y -= over; });
+  for (let i = labels.length - 2; i >= 0; i--) labels[i].y = Math.min(labels[i].y, labels[i + 1].y - SP);
+  if (labels.length && labels[0].y < 40) { const d = 40 - labels[0].y; labels.forEach(L => { L.y += d; }); }
+  labels.forEach(L => {
+    if (Math.abs(L.y - L.ny) > 8) el("path", { d: `M${x1 + 10},${L.ny} L${x1 + 22},${L.y}`, stroke: "#55555B", "stroke-width": 1.5, fill: "none" }, svg);
+    txt(svg, x1 + 28 + 78, L.y + 11, L.v, { "text-anchor": "end", "font-size": 32, "font-weight": 600, style: "font-family:var(--num)", fill: L.col === OUT ? "#C9A27E" : m.accent, ...HALO });
+    txt(svg, x1 + 28 + 92, L.y + 9, L.lab, { "font-size": 23, "font-weight": 600, fill: "#C9C9C6", ...HALO });
+  });
+  // left bar, record, and the two big numbers
+  el("rect", { x: x0 - 10, y: top, width: 10, height: H0, fill: "#F4F4F2" }, svg);
+  txt(svg, x0 - 24, top + H0 / 2 - 14, "RECORD", { "text-anchor": "end", "font-size": 18, "font-weight": 800, fill: C.tick, "letter-spacing": 2 });
+  txt(svg, x0 - 24, top + H0 / 2 + 24, c.record, { "text-anchor": "end", "font-size": 34, "font-weight": 600, style: "font-family:var(--num)", fill: "#F4F4F2" });
+  const pPo = o.po, xb = (x0 + xm) / 2;
+  txt(svg, xb, top - 62, "MAKE PLAYOFFS", { "text-anchor": "middle", "font-size": 20, "font-weight": 900, fill: m.accent, "letter-spacing": 2, ...HALO });
+  txt(svg, xb, top - 14, pct(pPo), { "text-anchor": "middle", "font-size": 50, "font-weight": 600, style: "font-family:var(--num)", fill: m.accent, ...HALO });
+  txt(svg, xb, top + H0 + 52, pct(1 - pPo), { "text-anchor": "middle", "font-size": 50, "font-weight": 600, style: "font-family:var(--num)", fill: "#C9A27E", ...HALO });
+  txt(svg, xb, top + H0 + 84, "MISS PLAYOFFS", { "text-anchor": "middle", "font-size": 20, "font-weight": 900, fill: "#C9A27E", "letter-spacing": 2, ...HALO });
+  return svg;
+}
 function chartBox(title, sub, svg, note) {
   const b = h("article", { class: "card wide" });
   b.innerHTML = `<h3 class="t1">${esc(title)}</h3><p class="sub">${esc(sub)}</p><div class="chart"></div>${note ? `<div class="foot" style="display:block"><small>${esc(note)}</small></div>` : ""}`;
@@ -1372,6 +1427,12 @@ async function teamView(t) {
       return `<tr><td>${gm.week}</td><td class="tm"><a href="#/${L.season}/${gm.week}/${gm.id}">${gm.home ? "vs" : "at"} ${logoHTML(gm.opp)}<b>${esc(T(gm.opp).nick)}</b></a></td>
       <td>${gm.p === null ? "–" : pctS(gm.p)}${gm.proj ? ' <small class="pj">PROJ</small>' : ""}</td><td class="${res === "W" ? "ok" : res === "L" ? "no" : ""}">${f ? `${res} ${my}-${op}` : esc(gm.kickoff || "")}</td></tr>`; }).join("")}
     </tbody></table></div><p class="board-note">Only weeks with a report on this site are listed. PROJ = projected matchup, model only.</p></section>`;
+  if (x.outcomes) {
+    const oc = x.outcomes, seedTxt = `Bye ${pctS(oc.bye)} · division title without a bye ${pctS(oc.div)} · wild card ${pctS(oc.wc)}`;
+    $(".team-cards", app).appendChild(chartBox("End-of-season outcomes", `${m.nick}: how the season ends across 10,000 simulations of the remaining games. ${seedTxt}.`,
+      outcomeFlow({ team: t, o: oc, record: `${x.w}-${x.l}${x.t ? "-" + x.t : ""}` }),
+      "Playoff games use the same ratings as the season simulations; higher seed at home, Super Bowl neutral. Draft slots: non-playoff teams pick 1-18 by fewest wins (tiebreaks approximate)."));
+  }
   $(".team-cards", app).appendChild(chartBox(`${m.nick} by week`, "Offense EPA per play vs. EPA per play allowed", tline({ team: t, trend: x.trend }), "Raw game values, so opponent strength is not removed here."));
 }
 
