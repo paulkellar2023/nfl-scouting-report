@@ -1,14 +1,11 @@
 {
- "status": "warn",
- "checked": "2026-11-17T04:26Z",
- "warnings": [
-  "weather: 16 of 16 forecast requests failed (search the log for 'weather:')",
-  "email: only 0/1 about_to_sends created (search the log for 'email:')"
- ],
+ "status": "ok",
+ "checked": "2026-11-17T14:43Z",
+ "warnings": [],
  "errors": [],
  "info": {
-  "week": 10,
-  "plays": 16671,
+  "week": 11,
+  "plays": 18376,
   "flags": {
    "ftn": true,
    "pressure": "proxy",
@@ -62,42 +59,42 @@
    "elo_teams": 35
   },
   "weather": {
-   "games": 12,
+   "games": 29,
    "sites": 16,
-   "failed": 16
+   "failed": 0
   },
   "recaps": {
-   "graded": 0,
-   "published": 0,
-   "walk": 135
+   "graded": 14,
+   "published": 14,
+   "walk": 149
   },
   "email": {
-   "created": 0,
+   "created": 1,
    "total": 1,
    "status": "about_to_send"
   },
-  "games": 14,
-  "projected_games": 122,
+  "games": 13,
+  "projected_games": 109,
   "summaries": {
-   "llm": 0,
+   "llm": 13,
    "rule": 0,
-   "kept": 14,
+   "kept": 0,
    "cached": 0
   },
   "luck": {
    "turnover_adjusted": true,
    "fumbles_in_data": true,
    "cv_ll": {
-    "raw": 0.6322,
-    "adjusted": 0.6313
+    "raw": 0.6329,
+    "adjusted": 0.631
    }
   },
   "model": {
    "ran": true,
    "alpha": 0.1,
-   "sigma": 11.75,
-   "hfa": 1.66,
-   "n_train": 2697
+   "sigma": 12.0,
+   "hfa": 1.62,
+   "n_train": 2711
   }
  }
 }
