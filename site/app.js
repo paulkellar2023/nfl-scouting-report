@@ -270,27 +270,46 @@ function duel(c) {
   svg.setAttribute("viewBox", `0 0 ${W} 612`);
   return svg;
 }
+const HALO = { stroke: "#0B0B0C", "stroke-width": 8, "paint-order": "stroke", "stroke-linejoin": "round" };
 function bars(c) {
-  const svg = newSvg(), box = { l: 110, r: W - 20, t: 30, b: H - 40 };
+  const svg = newSvg(), box = { l: 110, r: W - 20, t: 100, b: H - 40 };  // top room for the value callouts
   const vals = c.pts.map(p => p.v), lo = Math.min(0, ...vals), hi = Math.max(0, ...vals);
   const [y0, y1] = extent([lo, hi], 0.14), Y = lin(y0, y1, box.b, box.t), yt = nice(y0, y1, 5);
   for (const v of yt.ticks) {
     el("line", { x1: box.l, x2: box.r, y1: Y(v), y2: Y(v), stroke: C.grid, "stroke-width": 1.2 }, svg);
     txt(svg, box.l - 14, Y(v) + 8, tickFmt(v, c.fmt, yt.step), { "text-anchor": "end", "font-size": 24, "font-weight": 300, fill: C.tick });
   }
-  const n = c.pts.length, bw = (box.r - box.l) / n, hl = new Set(c.hl);
+  const n = c.pts.length, bw = (box.r - box.l) / n, hl = new Set(c.hl), callouts = [];
   c.pts.forEach((p, i) => {
     const x = box.l + i * bw, yv = Y(p.v), y0p = Y(0), on = hl.has(p.team), m = T(p.team);
     el("rect", { x: x + bw * 0.14, y: Math.min(yv, y0p), width: bw * 0.72, height: Math.max(1, Math.abs(yv - y0p)), fill: on ? m.accent : C.bar }, svg);
     const ly = p.v >= 0 ? yv - 18 : yv + 18;
     logo(svg, p.team, x + bw / 2, ly, on ? 34 : 24, {});
-    if (on) txt(svg, x + bw / 2 + (i > n * 0.7 ? -26 : 26), p.v >= 0 ? yv - 50 : yv + 64, fmt(p.v, c.fmt),
-      { "text-anchor": i > n * 0.7 ? "end" : "start", "font-size": 46, style: "font-family:var(--num)", "font-weight": 600, fill: m.accent });
+    if (on) callouts.push({ x: x + bw / 2, y: p.v >= 0 ? yv - 70 : yv + 70, s: fmt(p.v, c.fmt), col: m.accent, right: i > n * 0.6 });
   });
   el("line", { x1: box.l, x2: box.r, y1: Y(0), y2: Y(0), stroke: "#55555B", "stroke-width": 2 }, svg);
   if (c.med !== null) {
     dashed(svg, box.l, Y(c.med), box.r, Y(c.med));
-    txt(svg, box.r, Y(c.med) - 12, "League median " + fmt(c.med, c.fmt), { "text-anchor": "end", "font-size": 22, "font-weight": 300, fill: "#BDBDBD" });
+    // Median label goes on the side away from the highlighted bars, with a dark halo so bars behind it don't hide it.
+    const left = callouts.some(k => k.right);
+    txt(svg, left ? box.l + 8 : box.r, Y(c.med) - 12, "League median " + fmt(c.med, c.fmt),
+      { "text-anchor": left ? "start" : "end", "font-size": 24, "font-weight": 400, fill: "#D6D6D6", ...HALO });
+  }
+  // Value callouts last, so they sit on top: a dark pill with the team color as border, centered over the bar.
+  callouts.sort((p, q) => p.x - q.x);
+  callouts.forEach((k, i) => {  // keep each pill inside the plot, and push neighbors apart so two never overlap
+    k.w = 22 * k.s.length + 28;
+    k.cx = Math.min(box.r - k.w / 2, Math.max(box.l + k.w / 2, k.x));
+    const prev = callouts[i - 1];
+    if (prev && k.cx - prev.cx < (k.w + prev.w) / 2 + 8) {
+      k.cx = prev.cx + (k.w + prev.w) / 2 + 8;
+      if (k.cx + k.w / 2 > box.r) { k.cx = box.r - k.w / 2; prev.cx = k.cx - (k.w + prev.w) / 2 - 8; }
+    }
+  });
+  for (const k of callouts) {
+    const w = k.w, cx = k.cx;
+    el("rect", { x: cx - w / 2, y: k.y - 30, width: w, height: 52, rx: 10, fill: "#0B0B0C", stroke: k.col, "stroke-width": 3 }, svg);
+    txt(svg, cx, k.y + 10, k.s, { "text-anchor": "middle", "font-size": 36, style: "font-family:var(--num)", "font-weight": 600, fill: "#F4F4F2" });
   }
   const g = el("g", { transform: `translate(26,${(box.t + box.b) / 2}) rotate(-90)` }, svg);
   txt(g, 0, 0, c.y_label || "", { "text-anchor": "middle", "font-size": 22, "font-weight": 900, fill: C.title });

@@ -12,17 +12,20 @@ from .config import LLM_MODEL
 log = logging.getLogger(__name__)
 
 SYSTEM = (
-    "You write three-sentence NFL matchup previews for a technical analytics audience.\n"
-    "Sentence 1: say that the team named in `lean` has the edge on paper (or that it is close, if `lean` is "
-    "'close'), with its strongest reason from `keys`, then the other team's best counter-edge, with numbers.\n"
-    "Sentence 2: from `players`, compare the two quarterbacks by their EPA per dropback ranks, then name the "
-    "x-factor player with his number and the matchup it meets.\n"
-    "Sentence 3: the model's main reasons, from `model`: its favorite, win probability and the top factors "
-    "with their point values. If `model` is null, write about the market from `market_win_pct` instead.\n"
-    "Rules: use only facts and numbers from the JSON. Do not add statistics, injuries, records, history or "
-    "betting advice. Use hedged wording such as 'on paper'. Exactly three sentences, plain text, no em dashes, "
-    "under 100 words."
+    "You are a sharp NFL analytics writer. Write a three-sentence matchup preview in your own voice for fans who "
+    "know the numbers. Each preview should read differently from the last: vary how sentences open and what you lead with.\n"
+    "Sentence 1: the one matchup most likely to decide this game, taken from `keys` or `storylines`. Frame it as a "
+    "tension: what has to go right, for whom, and why it matters here. Use one or two numbers.\n"
+    "Sentence 2: the player angle. Name the x-factor from `players` and what he runs into, or contrast the two "
+    "quarterbacks if their ranks are far apart.\n"
+    "Sentence 3: our number against the market. Say whether `model` agrees with `market_win_pct` or not, and which "
+    "factor drives our number. If `model` is null, use the market alone.\n"
+    "Rules: use only facts and numbers from the JSON, and at most two numbers per sentence. If a fact is missing, "
+    "skip it without comment: never mention missing data, the JSON or 'the data'. Active voice, concrete verbs. "
+    "Do not use these stock phrases: 'on paper', 'x-factor', 'under center', 'best counter', 'the model favors', "
+    "'has the edge'. No betting advice, no em dashes, no hype words. Exactly three sentences, 50 to 85 words, plain text."
 )
+STOCK = ("on paper", "x-factor", "under center", "best counter", "the model favors", "has the edge", "the data")
 _NUM = re.compile(r"[-+]?\d+(?:\.\d+)?")
 
 
@@ -30,7 +33,7 @@ def _nums(s):
     return {n.lstrip("+-").rstrip("0").rstrip(".") or "0" for n in _NUM.findall(s)}
 
 
-VERSION = "7"  # bump to regenerate cached summaries after a prompt or fallback change
+VERSION = "8"  # bump to regenerate cached summaries after a prompt or fallback change
 
 
 def facts_hash(facts):
@@ -113,8 +116,16 @@ def summarize(facts):
                 log.warning("summary: attempt %d %s", attempt + 1, LAST_ERR)
                 continue
             bad = _nums(text) - allowed
-            if not bad:
+            n_sent = len(re.findall(r"[.!?](?:\s|$)", text))
+            stock = [p for p in STOCK if p in text.lower()]
+            if not bad and n_sent == 3 and not stock:
                 return text, "llm"
+            if not bad:
+                LAST_ERR = f"format: {n_sent} sentences, stock phrases {stock}"
+                log.warning("summary: attempt %d %s", attempt + 1, LAST_ERR)
+                if attempt == 1 and n_sent <= 4:
+                    return text, "llm"  # numbers check out; a near-miss on format beats the rule-based text
+                continue
             LAST_ERR = f"used numbers not in the facts {sorted(bad)[:5]}"
             log.warning("summary: attempt %d used numbers not in facts %s", attempt + 1, sorted(bad))
     except Exception as e:  # never fail the build on the summary
