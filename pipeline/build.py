@@ -160,19 +160,53 @@ def with_bot(cards, n, pool, kinds, force=False):
     return top + [c for c in cards if c not in top], len(top)
 
 
-def ensure_bot(docs, pools, write):
-    """At least one game per week shows the nfl4th card: if none does, add it to the game where it scores highest."""
-    shown = lambda d: any(c.get("source") == special.SRC_BOT for c in d.get("team_cards", [])[:d.get("team_n", 0)])
+KICK_MAX = 3  # kicker (field goal) cards: at most 3 games' default views per week (low weight, no minimum)
+
+
+def kick_of(pool):
+    return next((c for c in pool if c and c["id"].startswith("fg:")), None)
+
+
+def drop_card(cards, n, card, kinds):
+    """Take `card` out of the default view and fill its slot with the best remaining card of the same kind
+    (regular or field chart) whose type is not already shown."""
+    top = cards[:n]
+    if card not in top:
+        return cards, n
+    is_f = lambda c: c["id"].split(":")[0] in kinds
+    top = [c for c in top if c is not card]
+    have = {c["id"].split(":")[0] for c in top}
+    sub = next((c for c in cards[n:] if is_f(c) == is_f(card) and c["id"].split(":")[0] not in have | {card["id"].split(":")[0]}), None)
+    if sub is not None:
+        top.append(sub)
+    top = [c for c in top if not is_f(c)] + [c for c in top if is_f(c)]
+    return top + [c for c in cards if c not in top], len(top)
+
+
+def ensure_card(docs, pools, pick, write, name):
+    """At least one game per week shows the card `pick` finds: if none does, add it to the game where it scores highest."""
+    shown = lambda d: pick(d.get("team_cards", [])[:d.get("team_n", 0)]) is not None
     if not docs or any(shown(d) for d in docs):
         return
-    cand = [(bot_of(pools.get(d["id"], [])), d) for d in docs]
-    cand = [(b, d) for b, d in cand if b is not None]
+    cand = [(pick(pools.get(d["id"], [])), d) for d in docs]
+    cand = [(b, d) for b, d in cand if b is not None and d.get("team_n")]
     if not cand:
         return
     b, d = max(cand, key=lambda x: x[0]["score"])
-    d["team_cards"], d["team_n"] = with_bot(d["team_cards"] + [b], d["team_n"], [b], FIELD_TEAM, force=True)
+    top = d["team_cards"][:d["team_n"]]
+    regs = [c for c in top if c["id"].split(":")[0] not in FIELD_TEAM]
+    if regs:
+        drop = min(regs, key=lambda c: c["score"])
+        top = [c for c in top if c is not drop]
+    top = [c for c in top if c["id"].split(":")[0] not in FIELD_TEAM] + [b] + [c for c in top if c["id"].split(":")[0] in FIELD_TEAM]
+    d["team_cards"] = top + [c for c in d["team_cards"] if c not in top and c["id"] != b["id"]]
+    d["team_n"] = len(top)
     write(d)
-    log.info("nfl4th card added to %s so the week shows it once", d["id"])
+    log.info("%s card added to %s so the week shows it once", name, d["id"])
+
+
+def ensure_bot(docs, pools, write):
+    ensure_card(docs, pools, lambda cs: next((c for c in cs if c.get("source") == special.SRC_BOT), None), write, "nfl4th")
 
 
 def main():
@@ -367,6 +401,9 @@ def main():
         team_cards, team_n = with_field(team_cards, team_n, [c for c in pool_t if c], FIELD_TEAM, CARD_CAP)
         team_cards, team_n = fill(team_cards, team_n, FIELD_TEAM)
         team_cards, team_n = with_bot(team_cards, team_n, pool_t, FIELD_TEAM)
+        k = kick_of(team_cards[:team_n])
+        if k is not None and seen["c"].get("fg", 0) >= KICK_MAX:  # this week already has enough kicker cards
+            team_cards, team_n = drop_card(team_cards, team_n, k, FIELD_TEAM)
         bot_pool[g.game_id] = [c for c in pool_t if c]
         pc = templates_player.Cards(ptabs, pctx, M, tpls, game)
         tpp = {t.id: t for t in tpls}

@@ -177,7 +177,7 @@ def fg_card(T, a, b, M, game):
           f"{poss(M[own]['label'])} kicker is {abs(v):.1f} points below expected on field goals, {_rank_txt(r, n)}.")
     oth = next((t for t in have if t != own), None)
     t2 = (f"{poss(M[oth]['label'])} is at {float(tab.loc[oth, 'value']):+.1f}." if oth else "Close games can swing on one kick.")
-    return _card(f"fg:{own}", "special", own, 0.6 * abs(v) / sd, t1, t2,
+    return _card(f"fg:{own}", "special", own, 0.45 * abs(v) / sd, t1, t2,
                  f"Field goal points over expected (made minus expected makes, x3), {game['span']}.",
                  _bars(tab, (a, b), "yds", "FG POINTS OVER EXPECTED"),
                  f"Expected make rate by kick distance · {own}: {int(tab.loc[own, 'n'])} attempts · not shrunk")
