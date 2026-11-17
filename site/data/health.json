@@ -1,7 +1,9 @@
 {
- "status": "ok",
- "checked": "2026-11-17T14:43Z",
- "warnings": [],
+ "status": "warn",
+ "checked": "2026-11-17T23:08Z",
+ "warnings": [
+  "weather: 16 of 16 forecast requests failed (search the log for 'weather:')"
+ ],
  "errors": [],
  "info": {
   "week": 11,
@@ -34,7 +36,7 @@
    "wr_sep"
   ],
   "nfl4th": {
-   "plays": 2289
+   "plays": 2308
   },
   "visuals": [
    "att",
@@ -59,12 +61,12 @@
    "elo_teams": 35
   },
   "weather": {
-   "games": 29,
+   "games": 12,
    "sites": 16,
-   "failed": 0
+   "failed": 16
   },
   "recaps": {
-   "graded": 14,
+   "graded": 0,
    "published": 14,
    "walk": 149
   },
@@ -76,17 +78,17 @@
   "games": 13,
   "projected_games": 109,
   "summaries": {
-   "llm": 13,
+   "llm": 12,
    "rule": 0,
    "kept": 0,
-   "cached": 0
+   "cached": 1
   },
   "luck": {
    "turnover_adjusted": true,
    "fumbles_in_data": true,
    "cv_ll": {
-    "raw": 0.6329,
-    "adjusted": 0.631
+    "raw": 0.6334,
+    "adjusted": 0.6316
    }
   },
   "model": {
