@@ -13,6 +13,7 @@ import pandas as pd
 from . import (assets, bracket, clean, context, elo, extras, fantasy, special, tendencies, viz, viz2, feeds, health, league, leverage, model, model_cards, notify,
                record, share, stats, story, summary, templates_player, templates_team)
 from .text import agree
+from .config import FILL_VARIETY, VARIETY
 from .config import BUTTONDOWN_USERNAME, EMAIL_PER_TEAM, GOATCOUNTER_CODE, MODEL_FIRST_SEASON, SITE_URL
 from .config import (HANDLE, MAX_PLAYER_CARDS, MAX_TEAM_CARDS, MIN_PLAYER_CARDS, MIN_TEAM_CARDS,
                      PRIMETIME_BONUS, SEASON, SITE_TITLE)
@@ -250,6 +251,43 @@ def main():
     built = now.strftime("%Y-%m-%dT%H:%MZ")
     span = f"Weeks 1-{week - 1}, {args.season}" if week > 2 else f"Week 1, {args.season}"
 
+    # Variety across a week's games: a card type already in the default view of earlier games this week loses up to
+    # VARIETY of its score (in proportion to how many of them showed it). Small on purpose: it only breaks near-ties.
+    seen = {"n": 0, "c": {}}
+
+    def reset_variety():
+        seen["n"], seen["c"] = 0, {}
+
+    def vary(pool):
+        for c in pool:
+            if c and c.get("score") is not None:
+                c.setdefault("score_raw", c["score"])
+                share = seen["c"].get(c["id"].split(":")[0], 0) / seen["n"] if seen["n"] else 0.0
+                c["score"] = round(c["score_raw"] * (1 - VARIETY * share), 3)
+
+    def note_shown(*views):
+        seen["n"] += 1
+        for k in {c["id"].split(":")[0] for cards, n in views for c in cards[:n]}:
+            seen["c"][k] = seen["c"].get(k, 0) + 1
+
+    def fill(cards, n, kinds, target=6):
+        """Every default view shows `target` cards when that many exist. Open slots go to the best remaining cards,
+        weighted harder toward types this week's other games have not shown (FILL_VARIETY). Max 2 field charts."""
+        if n >= target or len(cards) <= n:
+            return cards, n
+        is_f = lambda c: c["id"].split(":")[0] in kinds
+        top = cards[:n]
+        nf = sum(is_f(c) for c in top)
+        share = lambda c: seen["c"].get(c["id"].split(":")[0], 0) / seen["n"] if seen["n"] else 0.0
+        for c in sorted(cards[n:], key=lambda c: -c.get("score_raw", c["score"]) * (1 - FILL_VARIETY * share(c))):
+            if len(top) >= target:
+                break
+            if is_f(c) and nf >= 2:
+                continue
+            top.append(c)
+            nf += is_f(c)
+        return top + [c for c in cards if c not in top], len(top)
+
     def make(g, mode, label, ko_text=None, neutral=False):
         """mode: live (this week) | proj (future regular-season week) | po (playoff game)."""
         a_, h_ = g.away_team, g.home_team
@@ -276,8 +314,10 @@ def main():
                     viz2.redzone_card, viz2.downs_card, viz2.explosive_card, viz2.wp_card, viz2.quarters_card, viz2.tug_card,
                     viz2.third_card, viz2.penalty_card, viz2.splits_card)]
         pool_t = rendered + specials + [c for c in ctxs if c]
+        vary(pool_t)
         team_cards, team_n = story.select(pool_t, MIN_TEAM_CARDS, MAX_TEAM_CARDS, (a_, h_), cap=CARD_CAP)
         team_cards, team_n = with_field(team_cards, team_n, [c for c in pool_t if c], FIELD_TEAM, CARD_CAP)
+        team_cards, team_n = fill(team_cards, team_n, FIELD_TEAM)
         pc = templates_player.Cards(ptabs, pctx, M, tpls, game)
         tpp = {t.id: t for t in tpls}
         extra_p = [viz.receiver_card(VZ, a_, h_, M, game, pctx, pc._name, pc._img),
@@ -285,9 +325,14 @@ def main():
                                      tpp["pressure"].deff if "pressure" in tpp else None),
                    viz2.tree_card(V2, a_, h_, M, game, pc._name, pc._img)]
         pool_p = pc.all(a_, h_) + [c for c in extra_p if c]
+        vary(pool_p)
         player_cards, player_n = templates_player.select(pool_p, MIN_PLAYER_CARDS, MAX_PLAYER_CARDS, cap=CARD_CAP)
         player_cards, player_n = with_field(player_cards, player_n, [c for c in pool_p if c], FIELD_PLAYER, CARD_CAP)
-        fantasy_cards, fantasy_n = fantasy.select(fantasy.Fantasy(ptabs, pctx, M, tpls, game).all(a_, h_))
+        player_cards, player_n = fill(player_cards, player_n, FIELD_PLAYER)
+        pool_f = fantasy.Fantasy(ptabs, pctx, M, tpls, game).all(a_, h_)
+        vary(pool_f)
+        fantasy_cards, fantasy_n = fantasy.select(pool_f)
+        note_shown((team_cards, team_n), (player_cards, player_n), (fantasy_cards, fantasy_n))
         keys = story.keys_pair(a_, h_, cands, specials, tpls, M)
         heat = []
         for c in cands:
@@ -375,12 +420,16 @@ def main():
 
     # ---------- this week ----------
     board, docs = [], []
+    reset_variety()
     for _, g in games.iterrows():
         started = kicked_off(g, now)
         if started and not args.refresh_started and g.game_id in prev_doc and g.game_id in prev_tile:
             _write(wdir / f"{g.game_id}.json", prev_doc[g.game_id])
             docs.append(prev_doc[g.game_id])
             board.append(prev_tile[g.game_id])
+            pd_ = prev_doc[g.game_id]
+            note_shown((pd_.get("team_cards", []), pd_.get("team_n", 0)), (pd_.get("player_cards", []), pd_.get("player_n", 0)),
+                       (pd_.get("fantasy_cards", []), pd_.get("fantasy_n", 0)))
             log.info("kept pre-kickoff report for %s", g.game_id)
             sum_counts["kept"] += 1
             continue
@@ -415,6 +464,7 @@ def main():
         pb = []
         pdir = ddir / wname(fw)
         shutil.rmtree(pdir, ignore_errors=True)
+        reset_variety()
         for _, g in reg[reg["week"] == fw].iterrows():
             doc, tile = make(g, "proj", f"Projected week {fw}")
             _write(pdir / f"{g.game_id}.json", doc)
@@ -433,6 +483,7 @@ def main():
     podir = ddir / "wkPO"
     shutil.rmtree(podir, ignore_errors=True)
     pob, out_rounds = [], []
+    reset_variety()
     for rd in rounds:
         og = []
         for gm in rd["games"]:

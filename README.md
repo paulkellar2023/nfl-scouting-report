@@ -5,7 +5,7 @@ Weekly NFL matchup previews on GitHub Pages: https://paulkellar2023.github.io/nf
 A Python pipeline reads open nflverse data, finds the largest unit-vs-unit edges in each game, and writes JSON. A static site shows:
 
 - **Week board:** games ordered by playoff leverage. Each tile shows the favorite and MODEL · MARKET · ELO.
-- **Matchup page:** 3 keys to success per team, a 2-sentence LLM summary, and Team, Players, Fantasy and Model tabs. Each tab shows 4 or 6 ranked cards, including 1 or 2 field charts. A CARD TYPES filter shows more.
+- **Matchup page:** 3 keys to success per team, a 2-sentence LLM summary, and Team, Players, Fantasy and Model tabs. Each tab shows 6 ranked cards (fewer only when fewer qualify), including 1 or 2 field charts. A CARD TYPES filter shows more.
 - **Projected weeks** through week 18, a **playoff bracket** seeded by projected final records, a **league table** with team pages, a **track record** page, and post-game **recaps**.
 - **RSS feeds** (one per team plus all games) and a weekly **email digest** through Buttondown.
 
@@ -64,7 +64,7 @@ cd site && python -m http.server 8000            # open http://localhost:8000
 - **Recency:** exponential weights by week, half-life 6 weeks.
 - **Opponent adjustment:** pass and rush EPA use a play-level ridge regression (offense + defense + home). The ridge penalty is sigma2 / tau2 (method of moments), so the ridge is the shrinkage. Pass EPA uses only the projected starting QB's dropbacks.
 - **Shrinkage:** other rates use empirical Bayes toward the league mean.
-- **Edge score:** z(offense) + z(opposing defense). Cards are ranked by score, at most 2 per phase. `with_field()` in `build.py` makes sure each view has 1 or 2 field charts. The front end shows 4 or 6 cards (`evenN` in `app.js`).
+- **Edge score:** z(offense) + z(opposing defense). Cards are ranked by score, at most 2 per phase. `with_field()` in `build.py` makes sure each view has 1 or 2 field charts. `fill()` brings each view to 6 cards, preferring card types the week's other games don't show (`FILL_VARIETY`), and `vary()` cuts a type's score by up to `VARIETY` (15%) when earlier games this week showed it.
 - **Leverage and projections:** 10,000-run Monte Carlo of the rest of the season, with real results for games already played.
 - **Matchup colors:** the home team keeps its accent. The away team takes its first alternate color that does not clash (`context.pair` and `pairColors` in `app.js`: close in RGB, or the same hue family with both saturated).
 

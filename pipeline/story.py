@@ -381,7 +381,7 @@ def select(cards, lo, hi, teams, cap=10):
             break
     n = 0
     for i, c in enumerate(out):
-        if i >= hi or (i >= lo and c["score"] < SOFT_SCORE_FLOOR):
+        if i >= hi or (i >= lo and c.get("score_raw", c["score"]) < SOFT_SCORE_FLOOR):  # variety must not change the count
             break
         n = i + 1
     for t in teams:

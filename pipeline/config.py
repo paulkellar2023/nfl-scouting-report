@@ -24,6 +24,10 @@ MIN_PLAYER_CARDS = 4
 MAX_PLAYER_CARDS = 6
 MAX_CARDS_PER_PHASE = 2
 SOFT_SCORE_FLOOR = 1.0
+# Max share of a card's score taken off when every earlier game this week already showed that card type (0 = off).
+VARIETY = 0.15
+# Same idea, stronger, for the slots filled to reach 6 cards (cards below the score floor, so relevance matters less).
+FILL_VARIETY = 0.5
 # Gap cards take the max over 7 gaps; subtract this so they compete fairly with single-stat cards.
 GAP_MAX_PENALTY = 1.0
 
