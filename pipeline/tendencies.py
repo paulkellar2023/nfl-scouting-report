@@ -37,6 +37,18 @@ def tables(plays, tpls):
                 dz[z] = S.eb(S.agg(g, "defteam", "epa"), 15)["value_s"]
             out["z_def"] = pd.DataFrame(dz)
             out["z_def_lg"] = a.groupby("zone")["epa"].mean()
+    if {"receiver_player_id", "receiver_player_name", "complete_pass"} <= set(plays.columns):
+        r = plays[plays["eff"] & plays["attempt"] & plays["receiver_player_id"].notna()]
+        if len(r) > 2000:
+            cnt = r.groupby(["posteam", "receiver_player_id"]).size().rename("n").reset_index()
+            top = cnt.sort_values("n", ascending=False).drop_duplicates("posteam").set_index("posteam")
+            r = r.assign(top=r["receiver_player_id"].eq(r["posteam"].map(top["receiver_player_id"])).astype(float))
+            nm = r.drop_duplicates("receiver_player_id").set_index("receiver_player_id")["receiver_player_name"]
+            t1 = r[r["top"] == 1]
+            out["wr1_def"] = S.eb(S.agg(t1, "defteam", "epa"), 30)["value_s"]
+            out["wr1_catch"] = t1.groupby("defteam")["complete_pass"].mean()
+            out["wr1_share"] = r.groupby("posteam")["top"].mean()
+            out["wr1_name"] = top["receiver_player_id"].map(nm)
     tp = {t.id: t for t in tpls}
     nt = plays[plays["neutral"]]
     if "xpass" in nt.columns and nt["xpass"].notna().mean() > 0.5 and "pass_epa" in tp and "rush_epa" in tp:
@@ -133,3 +145,35 @@ def lean_card(X, a, b, M, game):
                      {"label": f"{M[de]['nick']} defense: weaker vs. pass or run".upper(), "fmt": "num1", "hl": de, "pts": pts(sp),
                       "left": "WEAKER VS. RUN", "right": "WEAKER VS. PASS"}]},
                  "Defense lean = pass-defense z-score minus run-defense z-score (opponent-adjusted EPA allowed)")
+
+
+def wr1_card(X, a, b, M, game):
+    if "wr1_def" not in X:
+        return None
+    d, sh, nm = X["wr1_def"].dropna(), X["wr1_share"], X["wr1_name"]
+    best = None
+    for off, de in ((a, b), (b, a)):
+        zd = _z(d, de)
+        if np.isnan(zd) or abs(zd) < 0.7 or off not in nm.index or pd.isna(nm[off]):
+            continue
+        sc = 0.5 * abs(zd)
+        if best is None or sc > best[0]:
+            best = (sc, off, de, zd)
+    if best is None:
+        return None
+    sc, off, de, zd = best
+    A, B = M[off]["label"], M[de]["label"]
+    r, _ = _rk(d, de, high=zd > 0)
+    catch = float(X["wr1_catch"][de])
+    t1 = (f"{poss(B)} defense allows {d[de]:+.2f} EPA per target to top receivers, {ordinal(r)}-worst."
+          if zd > 0 else f"{poss(B)} defense holds top receivers to {d[de]:+.2f} EPA per target, {ordinal(r)}-best.")
+    t2 = f"{A} feed {nm[off]}, {round(100 * float(sh[off]))}% of their targets."
+    pts = lambda s: [{"team": t, "v": round(float(x), 4)} for t, x in s.dropna().items()]
+    return _card(f"wr1:{off}", "wr1", off if zd > 0 else de, sc, t1, t2,
+                 f"EPA per target each defense allows to the opposing top receiver vs. how much each offense leans on its top receiver, {game['span']}.",
+                 {"type": "strips", "rows": [
+                     {"label": f"{M[de]['nick']} defense: EPA allowed per target to top receivers".upper(), "fmt": "epa", "hl": de, "pts": pts(d),
+                      "left": "STINGY", "right": "GENEROUS"},
+                     {"label": f"{M[off]['nick']} offense: share of targets to top receiver".upper(), "fmt": "pct_pm", "hl": off, "pts": pts(sh),
+                      "left": "SPREAD OUT", "right": "TOP-HEAVY"}]},
+                 f"Top receiver = most targets on the team · catch rate allowed to top receivers {round(100 * catch)}% · garbage time removed · defense EPA shrunk to league mean")
