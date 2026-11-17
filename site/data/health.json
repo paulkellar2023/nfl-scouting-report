@@ -1,9 +1,7 @@
 {
- "status": "warn",
- "checked": "2026-11-17T01:58Z",
- "warnings": [
-  "email: only 0/1 about_to_sends created (search the log for 'email:')"
- ],
+ "status": "ok",
+ "checked": "2026-11-17T03:10Z",
+ "warnings": [],
  "errors": [],
  "info": {
   "week": 10,
@@ -35,6 +33,9 @@
    "wr_cush",
    "wr_sep"
   ],
+  "nfl4th": {
+   "plays": 2289
+  },
   "visuals": [
    "att",
    "cell_def",
@@ -48,6 +49,8 @@
   ],
   "phase4": {
    "special": [
+    "bot",
+    "bot_lost",
     "fg",
     "go",
     "st"
@@ -55,23 +58,28 @@
    "snaps": true,
    "elo_teams": 35
   },
+  "weather": {
+   "games": 29,
+   "sites": 16,
+   "failed": 0
+  },
   "recaps": {
    "graded": 0,
    "published": 0,
    "walk": 135
   },
   "email": {
-   "created": 0,
+   "created": 1,
    "total": 1,
    "status": "about_to_send"
   },
   "games": 14,
   "projected_games": 122,
   "summaries": {
-   "llm": 0,
+   "llm": 5,
    "rule": 0,
-   "kept": 14,
-   "cached": 0
+   "kept": 0,
+   "cached": 9
   },
   "luck": {
    "turnover_adjusted": true,
