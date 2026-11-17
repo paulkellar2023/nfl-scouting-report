@@ -105,11 +105,15 @@ def summarize(facts):
         client = anthropic.Anthropic(api_key=key)
         allowed = _nums(json.dumps(facts))
         for attempt in range(2):
-            msg = client.messages.create(model=LLM_MODEL, max_tokens=300, system=SYSTEM,
+            msg = client.messages.create(model=LLM_MODEL, max_tokens=2000, system=SYSTEM,
                                          messages=[{"role": "user", "content": json.dumps(facts)}])
             text = "".join(b.text for b in msg.content if b.type == "text").strip().replace("—", ",")
+            if not text:  # e.g. the token budget ran out before any text block
+                LAST_ERR = f"empty reply (stop_reason={msg.stop_reason}, blocks={[b.type for b in msg.content]})"
+                log.warning("summary: attempt %d %s", attempt + 1, LAST_ERR)
+                continue
             bad = _nums(text) - allowed
-            if text and not bad:
+            if not bad:
                 return text, "llm"
             LAST_ERR = f"used numbers not in the facts {sorted(bad)[:5]}"
             log.warning("summary: attempt %d used numbers not in facts %s", attempt + 1, sorted(bad))
