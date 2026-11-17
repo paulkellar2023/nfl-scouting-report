@@ -81,7 +81,7 @@ Not betting advice. A ridge regression on home margin, then P(home win) = Phi(ma
 
 ## Data sources
 
-All through `nflreadpy`: play-by-play, schedules and lines, teams, rosters, participation, FTN charting, injuries, snap counts, Next Gen Stats (passing, rushing, receiving), PFR advanced stats, expected fantasy points, weekly player stats and ESPN QBR. Each optional source is checked: if a source or column is missing, its cards are skipped and a health warning is logged. The `flags` object in each `games.json` shows what was available.
+All through `nflreadpy`: play-by-play, schedules and lines, teams, rosters, participation, FTN charting, injuries, snap counts, Next Gen Stats (passing, rushing, receiving), PFR advanced stats, expected fantasy points, weekly player stats and ESPN QBR. Outside nflverse: Ben Baldwin's nfl4th pre-computed 4th-down values (`special.load_bot`, read with `pyreadr`) and Open-Meteo kickoff forecasts (`weather.py`, no key). Each optional source is checked: if a source or column is missing, its cards are skipped and a health warning is logged. The `flags` object in each `games.json` shows what was available.
 
 ## Layout
 
@@ -109,6 +109,7 @@ pipeline/              Python build
   context.py           team metadata, colors, matchup color pairs
   share.py             link-preview pages (site/g) and images (site/og)
   feeds.py             RSS feeds
+  weather.py           kickoff forecasts (Open-Meteo)
   notify.py            Buttondown email
   summary.py           LLM summary (ANTHROPIC_API_KEY)
   health.py            build warnings

@@ -9,6 +9,43 @@ from .text import ordinal, possessive as poss
 
 SRC = "NFLVERSE PLAY-BY-PLAY"
 ST_TYPES = {"punt", "kickoff", "field_goal", "extra_point"}
+# Ben Baldwin's nfl4th ("4th down bot"): pre-computed go_boost (win-probability points gained by going for it vs. the
+# best kick) for every 4th down, joined to play-by-play on game_id + play_id. MIT-licensed R package; file is .rds.
+BOT_URL = "https://github.com/nflverse/nfl4th/releases/download/nfl4th_infrastructure/pre_computed_go_boost.rds"
+BOT_GO = 1.0  # "bot says go" = going for it adds at least 1 win-probability point
+SRC_BOT = "NFL4TH (BEN BALDWIN) · NFLVERSE PLAY-BY-PLAY"
+
+
+def load_bot(season):
+    """Returns the nfl4th go_boost table for `season`, or None (missing package, download error, stale file)."""
+    from . import health
+    import logging
+    import tempfile
+    log = logging.getLogger(__name__)
+    try:
+        import pyreadr
+        import requests
+
+        r = requests.get(BOT_URL, timeout=90)
+        r.raise_for_status()
+        with tempfile.NamedTemporaryFile(suffix=".rds") as f:
+            f.write(r.content)
+            f.flush()
+            df = next(iter(pyreadr.read_r(f.name).values()))
+        if not {"game_id", "play_id", "go_boost"} <= set(df.columns):
+            raise ValueError(f"unexpected columns {list(df.columns)[:12]}")
+        df = df[df["game_id"].astype(str).str.startswith(str(season))][["game_id", "play_id", "go_boost"]]
+        if df.empty:
+            raise ValueError(f"no {season} plays yet")
+        gb = pd.to_numeric(df["go_boost"], errors="coerce")
+        if gb.abs().median() < 0.5:  # stored as a probability, not percentage points
+            df = df.assign(go_boost=gb * 100)
+        health.info("nfl4th", {"plays": int(len(df))})
+        return df
+    except Exception as e:  # optional source: fall back to the rule-based 4th-down card
+        log.warning("nfl4th: %s", e)
+        health.warn(f"nfl4th 4th-down bot data unavailable ({type(e).__name__}: {str(e)[:120]}); using the rule-based 4th-down card")
+        return None
 
 
 def _cur(pbp, season, week):
@@ -37,7 +74,7 @@ def _fg_x(fg):
     return pd.Series(1 / (1 + np.exp(-X @ b)), index=fg.index)
 
 
-def tables(pbp, season, week):
+def tables(pbp, season, week, bot=None):
     out = {}
     if pbp is None or "play_type" not in pbp.columns:
         return out
@@ -66,6 +103,19 @@ def tables(pbp, season, week):
         if len(f) > 60:
             f["go"] = f["play_type"].isin(["pass", "run"]).astype(float)
             out["go"] = S.eb(S.agg(f, "posteam", "go"), 6)
+    if bot is not None and {"play_id", "game_id", "down"} <= set(d.columns):
+        f = d[(pd.to_numeric(d["down"], errors="coerce") == 4) & d["play_type"].isin(["pass", "run", "punt", "field_goal"])]
+        f = f.assign(play_id=pd.to_numeric(f["play_id"], errors="coerce"))
+        b = bot.assign(play_id=pd.to_numeric(bot["play_id"], errors="coerce"), go_boost=pd.to_numeric(bot["go_boost"], errors="coerce"))
+        f = f.merge(b, on=["game_id", "play_id"], how="inner").dropna(subset=["go_boost"])
+        if len(f) > 100:
+            f["went"] = f["play_type"].isin(["pass", "run"]).astype(float)
+            yes = f[f["go_boost"] >= BOT_GO]
+            out["bot"] = S.eb(S.agg(yes.assign(y=yes["went"]), "posteam", "y"), 8)
+            # Win probability left on the table: skipped a go the bot liked, or went when it said kick.
+            f["lost"] = np.where(f["went"] == 1, np.clip(-f["go_boost"], 0, None), np.clip(f["go_boost"], 0, None))
+            g = f.groupby("posteam").agg(lost=("lost", "sum"), games=("game_id", "nunique"))
+            out["bot_lost"] = (g["lost"] / g["games"]).rename("value")
     return out
 
 
@@ -133,7 +183,34 @@ def fg_card(T, a, b, M, game):
                  f"Expected make rate by kick distance · {own}: {int(tab.loc[own, 'n'])} attempts · not shrunk")
 
 
+def bot_card(T, a, b, M, game):
+    tab, lost = T.get("bot"), T.get("bot_lost")
+    if tab is None or a not in tab.index or b not in tab.index:
+        return None
+    za, zb = S.zscore(tab, a), S.zscore(tab, b)
+    if np.isnan(za) or np.isnan(zb):
+        return None
+    own = a if abs(za) >= abs(zb) else b
+    oth = b if own == a else a
+    r, n = _rk(tab, own)
+    v, vo = float(tab.loc[own, "value_s"]), float(tab.loc[oth, "value_s"])
+    coach = (game.get("coach") or {}).get(own)
+    who = f"{coach}'s {M[own]['nick']}" if isinstance(coach, str) and coach else M[own]["label"]
+    t1 = f"{who} {'go' if who != M[own]['label'] else 'goes'} for it on {round(100 * v)}% of 4th downs when the 4th down bot says go, {_rank_txt(r, n, 'highest', 'lowest')} rate."
+    t2 = f"{M[oth]['label']}: {round(100 * vo)}%, {_rank_txt(*_rk(tab, oth), 'highest', 'lowest')}."
+    if lost is not None and own in lost.index and oth in lost.index:
+        t2 += f" 4th-down calls cost {M[own]['nick']} {lost[own]:.1f} and {M[oth]['nick']} {lost[oth]:.1f} win-probability points per game."
+    c = _card(f"fourth:{own}", "fourth", own, 0.75 * max(abs(za), abs(zb)), t1, t2,
+              f"Share of 4th downs where going for it adds at least {BOT_GO:.0f} win-probability point (nfl4th) that the team went for, {game['span']}.",
+              _bars(tab, (a, b), "pct", "GO RATE WHEN THE BOT SAYS GO"),
+              "nfl4th go_boost by Ben Baldwin · recency-weighted · shrunk to league mean · cost = win probability given up vs. the bot's call")
+    c["source"] = SRC_BOT
+    return c
+
+
 def fourth_card(T, a, b, M, game):
+    if "bot" in T:
+        return bot_card(T, a, b, M, game)
     tab = T.get("go")
     if tab is None or a not in tab.index or b not in tab.index:
         return None

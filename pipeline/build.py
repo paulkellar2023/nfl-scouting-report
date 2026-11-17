@@ -10,7 +10,7 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-from . import (assets, bracket, clean, context, elo, extras, fantasy, special, tendencies, viz, viz2, feeds, health, league, leverage, model, model_cards, notify,
+from . import (assets, bracket, clean, context, elo, extras, fantasy, special, tendencies, viz, viz2, weather, feeds, health, league, leverage, model, model_cards, notify,
                record, share, stats, story, summary, templates_player, templates_team)
 from .text import agree
 from .config import FILL_VARIETY, VARIETY
@@ -194,7 +194,7 @@ def main():
     form = templates_team.form_tables(plays)
     luck = templates_team.luck_tables(plays) if flags["int_worthy"] else None
     ptabs = templates_player.build_tables(plays, flags, X)
-    SP = special.tables(raw["pbp"], args.season, week)
+    SP = special.tables(raw["pbp"], args.season, week, bot=None if synth_run else special.load_bot(args.season))
     TX = tendencies.tables(plays, tpls)
     VZ = viz.tables(plays, raw["pbp"], args.season, week)
     V2 = viz2.tables(plays, raw["pbp"], args.season, week)
@@ -248,6 +248,7 @@ def main():
             pass
         shutil.rmtree(wdir)
     now = dt.datetime.now(dt.timezone.utc)
+    WX = {} if synth_run else weather.forecasts(reg[reg["season"] == args.season], now)  # kickoff forecasts, next 15 days
     built = now.strftime("%Y-%m-%dT%H:%MZ")
     span = f"Weeks 1-{week - 1}, {args.season}" if week > 2 else f"Week 1, {args.season}"
 
@@ -408,11 +409,11 @@ def main():
                "model": ({"p_home": mp["p_home"], "margin": mp["margin"], "market": mp["market"],
                           "summary": agree(model_cards.summary(mp, M, ed["p_home"]), plurals)} if mp else None),
                "elo": ed,
-               "model_cards": mcards}
+               "model_cards": mcards, "weather": WX.get(g.game_id)}
         tile = {"id": g.game_id, "away": a_, "home": h_, "kickoff": ko, "primetime": prime,
                 "line": ln, "leverage": lv["leverage"], "heat": heat, "ko": f"{g.get('gameday')}T{g.get('gametime')}",
                 "model": {"p_home": mp["p_home"], "mkt": mp["market"]["p_home"], "elo": ed["p_home"]} if mp else None,
-                "elo": ed["p_home"],
+                "elo": ed["p_home"], "weather": WX.get(g.game_id),
                 "rank": lv["leverage"] + (PRIMETIME_BONUS if prime else 0.0),
                 "tease": [team_cards[0]["t1"], team_cards[0]["t2"]] if team_cards else None,
                 "tease_owner": team_cards[0]["owner"] if team_cards else None}

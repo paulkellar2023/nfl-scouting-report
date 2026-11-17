@@ -81,6 +81,26 @@ function clash(c1, c2) {
   const [h1, s1, v1] = hsv(c1), [h2, s2, v2] = hsv(c2), dh = Math.abs(h1 - h2);
   return Math.min(dh, 360 - dh) < 35 && Math.min(s1, s2) > 0.35 && Math.min(v1, v2) > 0.25;
 }
+// Kickoff weather: small line icons (stroke uses currentColor) plus a one-line text label.
+const WX_ICON = {
+  clear: '<circle cx="12" cy="12" r="4.5"/><path d="M12 2v2.5M12 19.5V22M2 12h2.5M19.5 12H22M4.9 4.9l1.8 1.8M17.3 17.3l1.8 1.8M4.9 19.1l1.8-1.8M17.3 6.7l1.8-1.8"/>',
+  cloud: '<path d="M7 18h10a4 4 0 0 0 .4-8A6 6 0 0 0 6 9.5 4.3 4.3 0 0 0 7 18z"/>',
+  fog: '<path d="M4 9h16M2 13h20M5 17h14"/>',
+  rain: '<path d="M7 14h10a4 4 0 0 0 .4-8A6 6 0 0 0 6 5.5 4.3 4.3 0 0 0 7 14z"/><path d="M8 17l-1 3M12 17l-1 3M16 17l-1 3"/>',
+  snow: '<path d="M7 13h10a4 4 0 0 0 .4-8A6 6 0 0 0 6 4.5 4.3 4.3 0 0 0 7 13z"/><path d="M8 17v.01M12 19v.01M16 17v.01M10 21v.01M14 21v.01"/>',
+  storm: '<path d="M7 13h10a4 4 0 0 0 .4-8A6 6 0 0 0 6 4.5 4.3 4.3 0 0 0 7 13z"/><path d="M12 14l-2 4h3l-2 4"/>',
+  wind: '<path d="M3 8h11a3 3 0 1 0-3-3M3 12h16a3 3 0 1 1-3 3M3 16h8"/>',
+  indoor: '<path d="M3 19a9 9 0 0 1 18 0M3 19h18M12 10v9"/>',
+};
+const WX_WORD = { clear: "Clear", cloud: "Cloudy", fog: "Fog", rain: "Rain", snow: "Snow", storm: "Storms", wind: "Windy" };
+function wxHTML(w, full) {
+  if (!w) return "";
+  const k = w.indoor ? "indoor" : w.kind, tip = w.indoor ? "Indoors (dome or closed roof)"
+    : `Kickoff forecast: ${w.t}°F, ${WX_WORD[k] || ""}${w.pp !== null && w.pp !== undefined ? `, ${w.pp}% chance of rain or snow` : ""}, wind ${w.wind} mph (${w.src})`;
+  const svg = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${WX_ICON[k] || WX_ICON.cloud}</svg>`;
+  const txt = full ? (w.indoor ? "INDOORS" : `${w.t}°F${w.wind >= 15 ? ` · ${w.wind} MPH` : ""}${w.pp >= 40 ? ` · ${w.pp}% ${k === "snow" ? "SNOW" : "RAIN"}` : ""}`) : (w.indoor ? "" : `${w.t}°`);
+  return `<span class="wx${full ? " full" : ""} wx-${k}" title="${esc(tip)}" aria-label="${esc(tip)}">${svg}${txt ? `<b>${txt}</b>` : ""}</span>`;
+}
 function pairColors(a, h) {
   const A = S.teams[a], H = S.teams[h];
   if (!A || !H) return null;
@@ -1103,7 +1123,7 @@ function board() {
     const a = T(g.away), hm = T(g.home), tile = h("a", { class: "tile", href: `#/${G.season}/${G.week}/${g.id}`,
       style: `--a:${a.accent};--h:${hm.accent};--acc:${T(g.tease_owner || g.home).accent};animation-delay:${i * 30}ms` });
     const imp = g.line && g.line.implied ? `${g.away} ${g.line.implied[g.away]} · ${g.home} ${g.line.implied[g.home]}` : "";
-    tile.innerHTML = `<div class="tile-meta"><span>${esc(g.kickoff)}</span>${g.primetime ? '<span class="chip prime">PRIMETIME</span>' : ""}</div>
+    tile.innerHTML = `<div class="tile-meta"><span>${esc(g.kickoff)}${wxHTML(g.weather, false)}</span>${g.primetime ? '<span class="chip prime">PRIMETIME</span>' : ""}</div>
       <div class="teams"><div class="team">${logoHTML(g.away)}<div><b>${esc(a.nick)}</b><small>${g.away}</small></div></div>
       <span class="at">at</span><div class="team home">${logoHTML(g.home)}<div><b>${esc(hm.nick)}</b><small>${g.home}</small></div></div></div>
       ${g.final ? `<div class="line final">FINAL · ${g.away} ${g.final[g.away]} · ${g.home} ${g.final[g.home]}${g.model_ok === true ? '<span class="ok">MODEL ✓</span>' : g.model_ok === false ? '<span class="no">MODEL ✗</span>' : ""}</div>`
@@ -1158,7 +1178,7 @@ async function matchup(id, tab, focus) {
   const call = (lab, c) => c ? `<span class="${c.ok ? "ok" : c.ok === false ? "no" : ""}">${lab}: ${c.team} ${Math.round(c.p * 100)}%${c.ok ? " ✓" : c.ok === false ? " ✗" : ""}</span>` : "";
   const stake = t => g.leverage.p_playoffs && g.leverage.p_playoffs[t] !== undefined
     ? `<span class="chip">${t} playoff odds ${Math.round(g.leverage.p_playoffs[t] * 100)}% · swing ${Math.round(Math.abs(g.leverage.by_team[t] || 0) * 100)} pts</span>` : "";
-  app.innerHTML = `<section class="hero" style="--a:${a.accent};--h:${hm.accent}">
+  app.innerHTML = `<section class="hero" style="--a:${a.accent};--h:${hm.accent}">${wxHTML(g.weather, true)}
       <div class="side">${logoHTML(g.away)}<div><h2>${esc(a.nick)}</h2><small>${esc(a.name)}</small></div></div>
       <div class="mid"><div class="k">${esc(g.kickoff)}${g.primetime ? " · PRIMETIME" : ""}${g.backfill ? " · BACKFILLED (PRE-WEEK DATA ONLY)" : g.after_kickoff ? " · BUILT AFTER KICKOFF (PRE-WEEK DATA ONLY)" : ""}</div>
         <div class="ln">${g.line ? esc(g.line.text) : "Line pending"}</div><div class="imp">${esc(imp)}${g.backfill && g.line ? " · closing line" : g.line && g.line_asof ? ` · line as of ${esc(g.line_asof.slice(5, 10).replace("-", "/"))}` : ""}</div>

@@ -26,7 +26,7 @@
 
   <nav class="toc" aria-label="On this page">
     <a href="#data">Data</a><a href="#cleaning">Cleaning</a><a href="#metrics">Metrics</a><a href="#adjust">Adjustment</a>
-    <a href="#cards">Cards &amp; keys</a><a href="#visuals">Visual guide</a><a href="#colors">Colors</a><a href="#model">Model</a><a href="#luck">Luck</a><a href="#elo">Elo</a><a href="#record">Track record</a><a href="#backfill">Backfill</a><a href="#nextgen">Next Gen &amp; PFR</a><a href="#special">Special teams</a><a href="#tendencies">Tendencies</a><a href="#fantasy">Fantasy</a><a href="#recaps">Recaps</a><a href="#teams">Teams</a><a href="#projections">Projections</a><a href="#bracket">Bracket</a><a href="#leverage">Leverage</a><a href="#limits">Limits</a><a href="#code">Code</a><a href="#credits">Credits</a>
+    <a href="#cards">Cards &amp; keys</a><a href="#visuals">Visual guide</a><a href="#colors">Colors</a><a href="#model">Model</a><a href="#luck">Luck</a><a href="#elo">Elo</a><a href="#record">Track record</a><a href="#backfill">Backfill</a><a href="#nextgen">Next Gen &amp; PFR</a><a href="#special">Special teams</a><a href="#tendencies">Tendencies</a><a href="#fantasy">Fantasy</a><a href="#recaps">Recaps</a><a href="#teams">Teams</a><a href="#projections">Projections</a><a href="#bracket">Bracket</a><a href="#leverage">Leverage</a><a href="#weather">Weather</a><a href="#limits">Limits</a><a href="#code">Code</a><a href="#credits">Credits</a>
   </nav>
 
   <section id="data"><h2>Data</h2>
@@ -109,7 +109,8 @@
     <ul>
       <li><b>Special teams EPA per game:</b> expected points added on punts, kickoffs, field goals and extra points, credited to the kicking or receiving side, recency-weighted and shrunk to the league mean.</li>
       <li><b>Field goal points over expected:</b> 3 × (field goals made minus expected makes), where the expected make rate comes from nflverse's field goal model when present, otherwise from a logistic fit on kick distance. Not shrunk; kickers need 5+ attempts.</li>
-      <li><b>Fourth-down aggressiveness:</b> share of 4th-and-1 or 4th-and-2 at or past the team's own 40 where the offense runs a play instead of punting or kicking, with win probability 10-90% and outside the last 2 minutes of each half. Shrunk to the league mean.</li>
+      <li><b>Fourth-down decisions (4th down bot):</b> when Ben Baldwin's <a href="https://www.nfl4th.com">nfl4th</a> model is available, the 4th-down card uses it. For every 4th down, nfl4th estimates how much win probability going for it adds compared with the best kick ("go boost"). The card shows how often a team went for it when going for it added at least 1 win-probability point (recency-weighted, shrunk to the league mean), and how many win-probability points per game its 4th-down calls gave up compared with the bot's call. If the nfl4th file is missing or has no plays for this season yet, the card falls back to the rule below.</li>
+      <li><b>Fourth-down aggressiveness (fallback):</b> share of 4th-and-1 or 4th-and-2 at or past the team's own 40 where the offense runs a play instead of punting or kicking, with win probability 10-90% and outside the last 2 minutes of each half. Shrunk to the league mean.</li>
     </ul>
   </section>
 
@@ -203,6 +204,10 @@
     <p>The rest of the season is simulated 10,000 times. This week's games use the market spread, and later games use the model's ratings, regressed toward even. Seeding is approximate: division winners, then wild cards by wins, with division wins and then a coin flip as tiebreakers.</p>
   </section>
 
+  <section id="weather"><h2>Weather</h2>
+    <p>Games in the next 15 days show a kickoff forecast from <a href="https://open-meteo.com">Open-Meteo</a>: an icon on the game tile and the temperature at the top right of the matchup page. Wind (15 mph or more) and the chance of rain or snow (40% or more) are added when they matter; hover or tap for the full forecast. Domes and stadiums whose roof is usually closed show "Indoors". The forecast is the hour closest to kickoff and updates with each build, then freezes at kickoff with the rest of the report. Weather does not enter the model.</p>
+  </section>
+
   <section id="limits"><h2>Limits</h2>
     <ul>
       <li>Mid-season samples are small. Shrinkage helps, but single-game swings still matter.</li>
@@ -216,7 +221,7 @@
   </section>
 
   <section id="credits"><h2>Credits</h2>
-    <p>Data: <a href="https://github.com/nflverse">nflverse</a> and FTN charting. The win-probability model started from Luke McHugh's <a href="https://lmchugh17.github.io/nfl-betting-model">NFL prediction model</a>. Visual style inspired by <a href="https://x.com/benwolby">@benwolby</a>. Matchup page idea from <a href="https://raycarp.com">Ray Carpenter</a>.</p>
+    <p>Data: <a href="https://github.com/nflverse">nflverse</a> and FTN charting. Fourth-down decision values from Ben Baldwin's <a href="https://www.nfl4th.com">nfl4th</a>. Weather from <a href="https://open-meteo.com">Open-Meteo</a>. The win-probability model started from Luke McHugh's <a href="https://lmchugh17.github.io/nfl-betting-model">NFL prediction model</a>. Visual style inspired by <a href="https://x.com/benwolby">@benwolby</a>. Matchup page idea from <a href="https://raycarp.com">Ray Carpenter</a>.</p>
   </section>
 </main>
 <footer class="foot-site"><p>The Drill Down · a different lens on the data, not betting advice.</p></footer>
