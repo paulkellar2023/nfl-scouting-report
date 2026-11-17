@@ -1348,7 +1348,7 @@ async function teamsView(sortKey) {
     <div class="tbl-wrap"><table class="tbl league"><thead><tr><th>TEAM</th>${cols.map(c => `<th><a href="#/teams?sort=${c[0]}" class="${c[0] === key ? "on" : ""}">${c[1]}</a></th>`).join("")}</tr></thead><tbody>
     ${rows.map(({ t, x }) => `<tr><td class="tm"><a href="#/team/${t}">${logoHTML(t)}<b>${esc(T(t).nick)}</b></a></td>${rankCell(x.net.r)}
       <td>${x.w}-${x.l}${x.t ? "-" + x.t : ""}</td><td>${x.pd > 0 ? "+" : ""}${x.pd}</td>
-      <td>${x.proj ? x.proj[0].toFixed(1) + "-" + x.proj[1].toFixed(1) : "\u2013"}</td>
+      <td>${x.proj ? `${Math.round(x.proj[0])}-${Math.round(x.proj[0] + x.proj[1]) - Math.round(x.proj[0])}` : "\u2013"}</td>
       <td class="chg ${x.luck >= 1 ? "up" : x.luck <= -1 ? "dn" : ""}">${x.luck === null || x.luck === undefined ? "\u2013" : (x.luck > 0 ? "+" : "") + x.luck.toFixed(1)}</td>
       <td class="chg ${x.net.chg > 0 ? "up" : x.net.chg < 0 ? "dn" : ""}">${x.net.chg === null ? "–" : x.net.chg > 0 ? "▲" + x.net.chg : x.net.chg < 0 ? "▼" + -x.net.chg : "="}</td>
       ${rankCell(u(x, "pass_epa", "off"))}${rankCell(u(x, "rush_epa", "off"))}${rankCell(u(x, "pass_epa", "def"))}${rankCell(u(x, "rush_epa", "def"))}
