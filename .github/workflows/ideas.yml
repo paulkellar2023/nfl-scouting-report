@@ -1,0 +1,31 @@
+name: idea-scout
+
+# Weekly: look for new NFL datasets and visuals, open one GitHub issue per card idea (label "idea").
+# Accept or decline an idea by adding the label "accepted" or "declined" to its issue.
+on:
+  schedule:
+    - cron: "17 14 * * 2"  # Tuesdays 14:17 UTC
+  workflow_dispatch:
+    inputs:
+      days:
+        description: "Look back this many days"
+        default: "8"
+
+permissions:
+  contents: write  # mockup images go to the idea-mockups branch
+  issues: write
+
+jobs:
+  scout:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - run: pip install requests anthropic matplotlib numpy
+      - run: python -m pipeline.ideas
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          IDEAS_DAYS: ${{ github.event.inputs.days || '8' }}

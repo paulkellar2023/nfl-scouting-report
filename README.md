@@ -37,6 +37,7 @@ The full method for readers is in `site/methods.html`. This file covers setup an
   - `backfill_weeks`: build past weeks first, for example `3-9`. Each uses only data from before that week. Weeks that already have a live report are skipped.
   - `refresh_started`: rebuild games that already kicked off (testing only).
   - `synthetic`: offline test data.
+- **idea-scout** (`.github/workflows/ideas.yml`): Tuesdays. Collects new nflverse data releases, nflreadr/nflreadpy/nfl4th release notes, active NFL data repos on GitHub and posts from Open Source Football and r/NFLstatheads, asks the LLM for up to 10 ideas, checks each source's data coverage (this season's files, updated in the last 10 to 14 days), drops stale ones, ranks verified weekly data first, and opens one issue per idea (label `idea`, at most 5 per week, no repeats). Each issue has a mockup chart with made-up data (`pipeline/mockups.py`), in a chart type the site does not publish yet; the images are stored on the `idea-mockups` branch, so `main` and the site never change. Accept or decline by adding the label `accepted` or `declined`. Accepted issues are the queue for new cards; building one is still a code change. Sources are in `FEEDS` and `RELEASE_REPOS` in `pipeline/ideas.py`.
 - **Deploy site** (`.github/workflows/pages.yml`): runs on any push to `main` that changes `site/`. Use it for front-end changes. No data build.
 
 ## Email
