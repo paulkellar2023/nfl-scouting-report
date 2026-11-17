@@ -37,18 +37,26 @@ def tables(plays, tpls):
                 dz[z] = S.eb(S.agg(g, "defteam", "epa"), 15)["value_s"]
             out["z_def"] = pd.DataFrame(dz)
             out["z_def_lg"] = a.groupby("zone")["epa"].mean()
-    if {"receiver_player_id", "receiver_player_name", "complete_pass"} <= set(plays.columns):
+    if {"receiver_player_id", "receiver_player_name", "complete_pass", "week"} <= set(plays.columns):
         r = plays[plays["eff"] & plays["attempt"] & plays["receiver_player_id"].notna()]
         if len(r) > 2000:
-            cnt = r.groupby(["posteam", "receiver_player_id"]).size().rename("n").reset_index()
-            top = cnt.sort_values("n", ascending=False).drop_duplicates("posteam").set_index("posteam")
-            r = r.assign(top=r["receiver_player_id"].eq(r["posteam"].map(top["receiver_player_id"])).astype(float))
+            # Top receiver = most recency-weighted targets. For the card's named player, only receivers targeted in the
+            # team's last 2 games count (a proxy for injured, inactive or traded players; the injury report is not joined).
+            wt = r.groupby(["posteam", "receiver_player_id"])["w"].sum().rename("n").reset_index()
+            top = wt.sort_values("n", ascending=False).drop_duplicates("posteam").set_index("posteam")
+            recent = r[r["week"] >= r["posteam"].map(r.groupby("posteam")["week"].apply(lambda s_: sorted(s_.unique())[-2:][0]))]
+            act = wt.merge(recent[["posteam", "receiver_player_id"]].drop_duplicates(), on=["posteam", "receiver_player_id"])
+            cur = act.sort_values("n", ascending=False).drop_duplicates("posteam").set_index("posteam")
+            r = r.assign(top=r["receiver_player_id"].eq(r["posteam"].map(top["receiver_player_id"])).astype(float),
+                         # EPA over that receiver's own average: a defense is not punished for facing elite receivers
+                         epa_x=r["epa"] - r.groupby("receiver_player_id")["epa"].transform("mean"),
+                         cur=r["receiver_player_id"].eq(r["posteam"].map(cur["receiver_player_id"])).astype(float))
             nm = r.drop_duplicates("receiver_player_id").set_index("receiver_player_id")["receiver_player_name"]
-            t1 = r[r["top"] == 1]
-            out["wr1_def"] = S.eb(S.agg(t1, "defteam", "epa"), 30)["value_s"]
-            out["wr1_catch"] = t1.groupby("defteam")["complete_pass"].mean()
-            out["wr1_share"] = r.groupby("posteam")["top"].mean()
-            out["wr1_name"] = top["receiver_player_id"].map(nm)
+            out["wr1_def"] = S.eb(S.agg(r[r["top"] == 1], "defteam", "epa_x"), 30)["value_s"]
+            out["wr1_other"] = S.eb(S.agg(r[r["top"] == 0], "defteam", "epa_x"), 60)["value_s"]
+            out["wr1_catch"] = r[r["top"] == 1].groupby("defteam")["complete_pass"].mean()
+            out["wr1_share"] = (r["cur"] * r["w"]).groupby(r["posteam"]).sum() / r["w"].groupby(r["posteam"]).sum()
+            out["wr1_name"] = cur["receiver_player_id"].map(nm)
     tp = {t.id: t for t in tpls}
     nt = plays[plays["neutral"]]
     if "xpass" in nt.columns and nt["xpass"].notna().mean() > 0.5 and "pass_epa" in tp and "rush_epa" in tp:
@@ -165,15 +173,13 @@ def wr1_card(X, a, b, M, game):
     A, B = M[off]["label"], M[de]["label"]
     r, _ = _rk(d, de, high=zd > 0)
     catch = float(X["wr1_catch"][de])
-    t1 = (f"{poss(B)} defense allows {d[de]:+.2f} EPA per target to top receivers, {ordinal(r)}-worst."
-          if zd > 0 else f"{poss(B)} defense holds top receivers to {d[de]:+.2f} EPA per target, {ordinal(r)}-best.")
-    t2 = f"{A} feed {nm[off]}, {round(100 * float(sh[off]))}% of their targets."
+    t1 = (f"{poss(B)} defense gives top receivers {d[de]:+.2f} EPA per target more than their average, {ordinal(r)}-worst."
+          if zd > 0 else f"{poss(B)} defense holds top receivers {abs(d[de]):.2f} EPA per target below their average, {ordinal(r)}-best.")
+    t2 = f"{A} feeds {nm[off]} {round(100 * float(sh[off]))}% of its targets."
     pts = lambda s: [{"team": t, "v": round(float(x), 4)} for t, x in s.dropna().items()]
     return _card(f"wr1:{off}", "wr1", off if zd > 0 else de, sc, t1, t2,
-                 f"EPA per target each defense allows to the opposing top receiver vs. how much each offense leans on its top receiver, {game['span']}.",
-                 {"type": "strips", "rows": [
-                     {"label": f"{M[de]['nick']} defense: EPA allowed per target to top receivers".upper(), "fmt": "epa", "hl": de, "pts": pts(d),
-                      "left": "STINGY", "right": "GENEROUS"},
-                     {"label": f"{M[off]['nick']} offense: share of targets to top receiver".upper(), "fmt": "pct_pm", "hl": off, "pts": pts(sh),
-                      "left": "SPREAD OUT", "right": "TOP-HEAVY"}]},
-                 f"Top receiver = most targets on the team · catch rate allowed to top receivers {round(100 * catch)}% · garbage time removed · defense EPA shrunk to league mean")
+                 f"EPA per target each defense allows above or below the receiver's own average: to opposing top receivers (filled) and to all other targets (open), {game['span']}.",
+                 {"type": "dumbbell", "fmt": "epa", "hl": de, "la": "VS. TOP RECEIVERS", "lb": "VS. ALL OTHER TARGETS",
+                  "rows": [{"team": t, "a": round(float(v), 4), "b": round(float(X["wr1_other"][t]), 4)}
+                           for t, v in d.items() if t in X["wr1_other"].index]},
+                 f"EPA over each receiver's own average (adjusts for facing elite receivers) · top receiver = most recency-weighted targets · catch rate allowed to top receivers {round(100 * catch)}% · garbage time removed · defense EPA shrunk to league mean")

@@ -290,6 +290,7 @@ function duel(c) {
   svg.setAttribute("viewBox", `0 0 ${W} 612`);
   return svg;
 }
+const BG_SVG = "#141417";  // fill for open dots, close to the card background
 const HALO = { stroke: "#0B0B0C", "stroke-width": 8, "paint-order": "stroke", "stroke-linejoin": "round" };
 function bars(c) {
   const svg = newSvg(), box = { l: 110, r: W - 20, t: 100, b: H - 40 };  // top room for the value callouts
@@ -656,6 +657,32 @@ function strips(c) {
   return svg;
 }
 
+// Dumbbell: one row per team, two values joined by a line (filled dot = a, open dot = b). Sorted by a; one team highlighted.
+function dumbbell(c) {
+  const rows = [...c.rows].sort((p, q) => q.a - p.a), rh = 26, top = 90, svg = newSvg(top + rows.length * rh + 70);
+  const box = { l: 90, r: W - 40 }, [x0, x1] = extent(rows.flatMap(r => [r.a, r.b]).concat([0]), 0.06), X = lin(x0, x1, box.l, box.r);
+  const m = T(c.hl);
+  el("line", { x1: X(0), x2: X(0), y1: top - 20, y2: top + rows.length * rh, stroke: "#3A3A40", "stroke-width": 2 }, svg);
+  el("circle", { cx: box.l, cy: 34, r: 8, fill: "#F4F4F2" }, svg);
+  txt(svg, box.l + 16, 41, c.la, { "font-size": 18, "font-weight": 900, fill: "#C9C9C6", "letter-spacing": ".05em" });
+  el("circle", { cx: box.l + 300, cy: 34, r: 7, fill: BG_SVG, stroke: "#F4F4F2", "stroke-width": 3 }, svg);
+  txt(svg, box.l + 316, 41, c.lb, { "font-size": 18, "font-weight": 900, fill: "#C9C9C6", "letter-spacing": ".05em" });
+  rows.forEach((r, i) => {
+    const y = top + i * rh, on = r.team === c.hl, col = on ? m.accent : "#5A5A60";
+    if (on) el("rect", { x: 0, y: y - rh / 2, width: W, height: rh, fill: m.accent, opacity: 0.1 }, svg);
+    logo(svg, r.team, 50, y, on ? 30 : 20, on ? { hl: true } : { dim: true });
+    el("line", { x1: X(r.a), x2: X(r.b), y1: y, y2: y, stroke: col, "stroke-width": on ? 4 : 2 }, svg);
+    el("circle", { cx: X(r.b), cy: y, r: on ? 8 : 6, fill: BG_SVG, stroke: col, "stroke-width": 3 }, svg);
+    el("circle", { cx: X(r.a), cy: y, r: on ? 9 : 6, fill: col }, svg);
+    if (on) txt(svg, Math.max(X(r.a), X(r.b)) + 16, y + 8, fmt(r.a, c.fmt), { "font-size": 26, "font-weight": 600, style: "font-family:var(--num)", fill: m.accent, ...HALO });
+  });
+  const yb = top + rows.length * rh + 30;
+  [x0, 0, x1].forEach(v => txt(svg, X(v), yb, fmt(v, c.fmt), { "text-anchor": "middle", "font-size": 18, fill: C.tick }));
+  txt(svg, box.l, yb + 32, "\u2190 STINGIER THAN THE RECEIVER'S AVERAGE", { "font-size": 15, "font-weight": 900, fill: C.tick });
+  txt(svg, box.r, yb + 32, "MORE GENEROUS \u2192", { "text-anchor": "end", "font-size": 15, "font-weight": 900, fill: C.tick });
+  return svg;
+}
+
 /* ---------- field visuals (pass chart, run chart, receiver chart, drives, 4th-down map) ---------- */
 const RED = "#FF5A5A", GREEN = "#4FC3A1";
 function pfield(svg, ox, opt) {
@@ -1002,7 +1029,7 @@ function splits(c) {
   txt(svg, 40, 460, "EPA PER DROPBACK · DEFENSE ROWS = WHAT IT ALLOWS", { "font-size": 13, "font-weight": 800, fill: C.tick });
   return svg;
 }
-const CHARTS = { redzone, downs, explmap, wpline, quarters, tree, tug, thirds, penalties, splits, passchart, runchart, rcvchart, drives, fourthmap, zones, strips, elotrend, pbars, cumline, tline, scatter, pscatter, duel, bars, gaps, splits, trend, pstrip, probbars, waterfall, dist, injuries, units, calib };
+const CHARTS = { dumbbell, redzone, downs, explmap, wpline, quarters, tree, tug, thirds, penalties, splits, passchart, runchart, rcvchart, drives, fourthmap, zones, strips, elotrend, pbars, cumline, tline, scatter, pscatter, duel, bars, gaps, splits, trend, pstrip, probbars, waterfall, dist, injuries, units, calib };
 
 
 /* ---------- card ---------- */
