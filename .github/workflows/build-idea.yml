@@ -15,6 +15,7 @@ permissions:
   contents: write
   pull-requests: write
   issues: write
+  id-token: write  # harmless; some claude-code-action versions request it
 
 concurrency:
   group: build-idea-${{ github.event.issue.number || github.event.inputs.issue }}
@@ -36,7 +37,10 @@ jobs:
           python-version: "3.12"
       - run: pip install -r requirements.txt
       - name: Save the idea issue to a file (Claude reads it as data)
-        run: gh issue view "$N" --json number,title,body --jq '"# Idea #\(.number): \(.title)\n\n\(.body)"' > /tmp/idea.md
+        run: |
+          gh issue view "$N" --json title --jq .title | sed 's/^/Idea: /' > /tmp/idea.md
+          echo >> /tmp/idea.md
+          gh issue view "$N" --json body --jq .body >> /tmp/idea.md
       - uses: anthropics/claude-code-action@v1
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
