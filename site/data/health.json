@@ -1,9 +1,7 @@
 {
- "status": "warn",
- "checked": "2026-11-18T00:35Z",
- "warnings": [
-  "email test asked for, but the EMAIL_TEST_TO secret is not set"
- ],
+ "status": "ok",
+ "checked": "2026-11-18T01:01Z",
+ "warnings": [],
  "errors": [],
  "info": {
   "week": 11,
@@ -70,13 +68,19 @@
    "published": 14,
    "walk": 149
   },
+  "email_images": 9,
+  "email": {
+   "created": 1,
+   "total": 1,
+   "status": "draft"
+  },
   "games": 13,
   "projected_games": 109,
   "summaries": {
-   "llm": 6,
+   "llm": 1,
    "rule": 0,
    "kept": 0,
-   "cached": 7
+   "cached": 12
   },
   "luck": {
    "turnover_adjusted": true,
