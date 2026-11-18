@@ -68,7 +68,7 @@ def forecasts(games, now):
             out[g.game_id] = {"indoor": True}
             continue
         want.setdefault(site[:2], []).append((g.game_id, ko))
-    fails = 0
+    fails, first = 0, None
     for (lat, lon), rows in want.items():
         try:
             r = requests.get(API, timeout=15, params={
@@ -88,8 +88,9 @@ def forecasts(games, now):
                             "kind": kind(hr["weather_code"][i] or 0, w), "src": SRC}
         except Exception as e:  # weather is optional: never fail the build
             fails += 1
+            first = first or f"{type(e).__name__}: {str(e)[:160]} {getattr(getattr(e, 'response', None), 'text', '')[:160]}".strip()
             log.warning("weather: %s,%s failed: %s", lat, lon, e)
     health.info("weather", {"games": len(out), "sites": len(want), "failed": fails})
     if fails:
-        health.warn(f"weather: {fails} of {len(want)} forecast requests failed (search the log for 'weather:')")
+        health.warn(f"weather: {fails} of {len(want)} forecast requests failed. First error: {first}")
     return out
