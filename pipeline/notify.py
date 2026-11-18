@@ -323,13 +323,15 @@ def _digest_body(docs, week, teams, bracket=None, league=None, imgs=None, record
     return _wrap(P)
 
 
-def send_week(wdir, teams, ordered_ids, week):
+def send_week(wdir, teams, ordered_ids, week, test_to=None):
+    """test_to: an address. Then only the digest is made, as a Buttondown draft sent to that address alone;
+    no subscriber gets it and the week's send marker is not written (or checked)."""
     key = os.environ.get("BUTTONDOWN_API_KEY")  # GitHub Actions repository secret
     if not key:
         log.info("email: BUTTONDOWN_API_KEY not set, skipping")
         return
     marker = Path(wdir) / "email_sent.json"
-    if marker.exists():
+    if marker.exists() and not test_to:
         log.info("email: week %s already sent (%s), skipping", week, marker)
         return
     import requests
@@ -344,7 +346,7 @@ def send_week(wdir, teams, ordered_ids, week):
     tease = {t["id"]: t.get("tease") for t in json.loads(gj.read_text()).get("games", [])} if gj.exists() else {}
     for d in docs:
         d.setdefault("tease", tease.get(d["id"]))
-    status = "about_to_send" if EMAIL_MODE == "send" else "draft"
+    status = "about_to_send" if EMAIL_MODE == "send" and not test_to else "draft"
     hdr = {"Authorization": f"Token {key}"}
     if status == "about_to_send":
         hdr["X-Buttondown-Live-Dangerously"] = "true"  # newer API versions refuse a direct send without it
@@ -376,7 +378,9 @@ def send_week(wdir, teams, ordered_ids, week):
     if g:
         subject += f" · {teams[g['away']]['nick']} at {teams[g['home']]['nick']} leads the way"
     jobs = [(subject, _digest_body(docs, week, teams, bracket, league, imgs, record), "ALL" if EMAIL_PER_TEAM else None)]
-    for d in (docs if EMAIL_PER_TEAM else []):
+    if test_to:
+        jobs = [("[TEST] " + jobs[0][0], jobs[0][1], None)]
+    for d in (docs if EMAIL_PER_TEAM and not test_to else []):
         for t in (d["away"], d["home"]):
             opp = d["home"] if t == d["away"] else d["away"]
             jobs.append((f"{SITE_TITLE}: {teams[t]['nick']} vs. {teams[opp]['nick']}, Week {week}",
@@ -390,6 +394,10 @@ def send_week(wdir, teams, ordered_ids, week):
                 payload["filters"] = _tag_filter(tag)
             r = requests.post(API, headers=hdr, timeout=20, json=payload)
             r.raise_for_status()
+            if test_to:  # send the draft to the test address only
+                requests.post(f"{API}/{r.json()['id']}/send-draft", headers=hdr, timeout=20,
+                              json={"recipients": [test_to]}).raise_for_status()
+                log.info("email: test draft sent to the EMAIL_TEST_TO address")
             ok += 1
         except Exception as e:  # one failed email must not stop the others or the build
             log.warning("email: %s failed: %s %s", tag, e, getattr(getattr(e, "response", None), "text", "")[:300])
@@ -397,5 +405,5 @@ def send_week(wdir, teams, ordered_ids, week):
     health.info("email", {"created": ok, "total": len(jobs), "status": status})
     if ok < len(jobs):
         health.warn(f"email: only {ok}/{len(jobs)} {status}s created (search the log for 'email:')")
-    if ok:
+    if ok and not test_to:
         marker.write_text(json.dumps({"week": week, "status": status, "created": ok}))
