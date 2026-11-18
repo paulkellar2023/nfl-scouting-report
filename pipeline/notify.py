@@ -108,11 +108,11 @@ def _md(t):
     t = html.escape(str(t), quote=False)
     t = re.sub(r"\*\*(.+?)\*\*", lambda m: f'<b style="color:{INK}">{m.group(1)}</b>', t)
     return re.sub(r"\[(.+?)\]\((\S+?)\)",
-                  lambda m: f'<a href="{m.group(2)}" style="color:{BRAND};text-decoration:none;font-weight:700">{m.group(1)}</a>', t)
+                  lambda m: f'<a href="{m.group(2)}" style="color:{BRAND};text-decoration:none;font-weight:700"><span style="color:{BRAND}">{m.group(1)}</span></a>', t)
 
 
 def _h2(t, href=None):
-    more = (f'<a href="{href}" style="float:right;font-size:11px;letter-spacing:.12em;color:{MUTE};text-decoration:none">ON THE SITE &#8594;</a>'
+    more = (f'<a href="{href}" style="float:right;font-size:11px;letter-spacing:.12em;color:{MUTE};text-decoration:none"><span style="color:{MUTE}">ON THE SITE &#8594;</span></a>'
             if href else "")
     return (f'<h2 style="margin:34px 0 10px;padding-top:14px;border-top:3px solid {BRAND};font-family:{SANS};font-size:15px;'
             f'font-weight:900;letter-spacing:.14em;text-transform:uppercase;color:{BRAND}">{more}{_md(t)}</h2>')
@@ -140,13 +140,13 @@ def _matchup(teams, d, big=False):
     a, h = d["away"], d["home"]
     px, fs = (34, 28) if big else (22, 19)
     return (f'<div style="font-family:{NUM};font-size:{fs}px;font-weight:600;letter-spacing:.02em;color:{INK};margin:0 0 4px">'
-            f'{_tl(teams, a, px, True)} <a href="{_game(d)}" style="color:{MUTE};text-decoration:none">AT</a> {_tl(teams, h, px)}</div>')
+            f'{_tl(teams, a, px, True)} <a href="{_game(d)}" style="color:{MUTE};text-decoration:none"><span style="color:{MUTE}">AT</span></a> {_tl(teams, h, px)}</div>')
 
 
 def _tl(teams, t, px, logo_first=False):
     """Logo + name, linked to the team page."""
     name, lg = teams[t]["nick"].upper(), _logo(teams, t, px)
-    return f'<a href="{_team(t)}" style="color:{INK};text-decoration:none">{lg + " " + name if logo_first else name + " " + lg}</a>' 
+    return f'<a href="{_team(t)}" style="color:{INK};text-decoration:none"><span style="color:{INK}">{lg + " " + name if logo_first else name + " " + lg}</span></a>' 
 
 
 def _img(url, alt, href=None):
@@ -160,11 +160,18 @@ def _tag(t):
 
 
 def _wrap(parts):
+    """Full HTML page: sent with Buttondown's "naked" template it fills the reader's window in the site's dark style
+    (no Buttondown card around it). Naked emails must carry their own unsubscribe link."""
     body = "".join(parts)
-    return (f'<link href="{FONTS}" rel="stylesheet"><div style="background:{BG};padding:28px 0">'
-            f'<div style="max-width:620px;margin:0 auto;padding:0 18px;background:{BG};color:{INK}">'
+    unsub = (f'<p style="margin:10px 0 0;font-family:{SANS};font-size:12px;color:{MUTE}">'
+             f'<a href="{{{{ unsubscribe_url }}}}" style="color:{MUTE}"><span style="color:{MUTE}">Unsubscribe</span></a>'
+             f' · <a href="{SITE_URL}" style="color:{MUTE}"><span style="color:{MUTE}">The Drill Down</span></a></p>')
+    return (f'<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">'
+            f'<meta name="color-scheme" content="dark"><link href="{FONTS}" rel="stylesheet"></head>'
+            f'<body style="margin:0;padding:0;background:{BG}"><div style="background:{BG};padding:24px 0;width:100%">'
+            f'<div style="max-width:720px;margin:0 auto;padding:0 16px;background:{BG};color:{INK}">'
             f'<div style="font-family:{SANS};font-size:13px;font-weight:900;letter-spacing:.2em;color:{INK}">THE DRILL <span style="color:{BRAND}">DOWN</span></div>'
-            f'{body}<p style="margin:30px 0 0;font-family:{SANS};font-size:12px;color:{MUTE}">{FOOT}</p></div></div>')
+            f'{body}<p style="margin:30px 0 0;font-family:{SANS};font-size:12px;color:{MUTE}">{FOOT}</p>{unsub}</div></div></body></html>')
 
 
 def _team_body(d, team, teams, imgs=None):
@@ -220,7 +227,7 @@ def _report(record, week):
 
 
 def _section(sid, title, parts, href=None):
-    top = f'<p style="margin:6px 0 0;text-align:right"><a href="#top" style="font-family:{SANS};font-size:12px;font-weight:800;color:{MUTE};text-decoration:none">&#8593; TOP</a></p>'
+    top = f'<p style="margin:6px 0 0;text-align:right"><a href="#top" style="font-family:{SANS};font-size:12px;font-weight:800;color:{MUTE};text-decoration:none"><span style="color:{MUTE}">&#8593; TOP</span></a></p>'
     return [f'<a id="{sid}" name="{sid}"></a>', _h2(title, href)] + parts + [top]
 
 
@@ -266,7 +273,7 @@ def _digest_body(docs, week, teams, bracket=None, league=None, imgs=None, record
             P.append(_p(g["summary"].split(". ")[0].rstrip(".") + "."))
         for tk, tl in TABS:
             if f"top_{tk}" in imgs:
-                P += [_tag(f'<a href="{_game(g, tk)}" style="color:{MUTE};text-decoration:none">{tl} TAB &#8594;</a>'), _img(imgs[f"top_{tk}"], tl, _game(g, tk))]
+                P += [_tag(f'<a href="{_game(g, tk)}" style="color:{MUTE};text-decoration:none"><span style="color:{MUTE}">{tl} TAB &#8594;</span></a>'), _img(imgs[f"top_{tk}"], tl, _game(g, tk))]
         P.append(_p(f"[All the cards, keys and the model]({SITE_URL}g/{g['id']}.html)"))
         S.append(("gotw", "Game of the week", P, _game(g)))
     if ups:
@@ -308,11 +315,13 @@ def _digest_body(docs, week, teams, bracket=None, league=None, imgs=None, record
                      f'{_p(links, 13).replace("margin:0 0 12px", "margin:0")}</div>')
         P.append(_p(f"[Open the week board]({SITE_URL}#/{season}/{week})"))
         S.append(("slate", "The rest of the slate", P, board))
-    facts = {"week": week, "most_at_stake": st and {"team": teams[st]["name"], "swing_pct": round(100 * sv)},
-             "upsets": [{"team": nick(u[2]), "model_pct": round(100 * u[0]), "market_pct": round(100 * u[1])} for u in ups],
+    facts = {"week": week, "most_at_stake": st and {"team": teams[st]["name"], "playoff_odds_swing_percentage_points": round(100 * sv)},
+             "upsets": [{"team": nick(u[2]), "model_pct": round(100 * u[0]), "market_pct": round(100 * u[1])} for u in ups] or None,
              "game_of_the_week": g and f"{nick(g['away'])} at {nick(g['home'])}"}
-    intro = _llm(facts, "Write a 2-sentence opening for this week's issue that teases the most interesting thing in it.")
-    toc = " &nbsp;·&nbsp; ".join(f'<a href="#{sid}" style="color:{INK};text-decoration:none;font-weight:800">{t.split(":")[0].upper()}</a>' for sid, t, *_ in S)
+    facts = {k: v for k, v in facts.items() if v}
+    intro = _llm(facts, "Write a 2-sentence opening for this week's issue that teases the most interesting thing in it. "
+                        "Only mention what the JSON has; never mention something that is missing.")
+    toc = " &nbsp;·&nbsp; ".join(f'<a href="#{sid}" style="color:{INK};text-decoration:none;font-weight:800"><span style="color:{INK}">{t.split(":")[0].upper()}</span></a>' for sid, t, *_ in S)
     P = ['<a id="top" name="top"></a>',
          f'<h1 style="margin:14px 0 8px;font-family:{SANS};font-size:30px;font-weight:900;line-height:1.1;color:{INK}">Week {week} <span style="color:{BRAND}">preview</span></h1>',
          _p(intro or "Where our model splits from the market, who has the most riding on this week, and how the playoff race looks.", 17),
@@ -389,10 +398,15 @@ def send_week(wdir, teams, ordered_ids, week, test_to=None):
     ok = 0
     for subject, body, tag in jobs:
         try:
-            payload = {"subject": subject, "body": body, "status": status}
+            payload = {"subject": subject, "body": body, "status": status, "template": "naked"}
             if tag:
                 payload["filters"] = _tag_filter(tag)
             r = requests.post(API, headers=hdr, timeout=20, json=payload)
+            if r.status_code in (400, 403, 422):  # plan or API refuses "naked": use the newsletter's default template
+                log.warning("email: naked template refused (%s %s), using the default template", r.status_code, r.text[:200])
+                payload.pop("template")
+                payload["body"] = "<!-- buttondown-editor-mode: fancy -->" + body
+                r = requests.post(API, headers=hdr, timeout=20, json=payload)
             r.raise_for_status()
             if test_to:  # send the draft to the test address only
                 requests.post(f"{API}/{r.json()['id']}/send-draft", headers=hdr, timeout=20,
