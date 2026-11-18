@@ -1,8 +1,8 @@
 {
  "status": "warn",
- "checked": "2026-11-17T23:08Z",
+ "checked": "2026-11-18T00:35Z",
  "warnings": [
-  "weather: 16 of 16 forecast requests failed (search the log for 'weather:')"
+  "email test asked for, but the EMAIL_TEST_TO secret is not set"
  ],
  "errors": [],
  "info": {
@@ -61,27 +61,22 @@
    "elo_teams": 35
   },
   "weather": {
-   "games": 12,
+   "games": 29,
    "sites": 16,
-   "failed": 16
+   "failed": 0
   },
   "recaps": {
    "graded": 0,
    "published": 14,
    "walk": 149
   },
-  "email": {
-   "created": 1,
-   "total": 1,
-   "status": "about_to_send"
-  },
   "games": 13,
   "projected_games": 109,
   "summaries": {
-   "llm": 12,
+   "llm": 6,
    "rule": 0,
    "kept": 0,
-   "cached": 1
+   "cached": 7
   },
   "luck": {
    "turnover_adjusted": true,
