@@ -1,7 +1,9 @@
 {
- "status": "ok",
- "checked": "2026-11-18T01:01Z",
- "warnings": [],
+ "status": "warn",
+ "checked": "2026-11-18T01:14Z",
+ "warnings": [
+  "weather: 16 of 16 forecast requests failed (search the log for 'weather:')"
+ ],
  "errors": [],
  "info": {
   "week": 11,
@@ -59,9 +61,9 @@
    "elo_teams": 35
   },
   "weather": {
-   "games": 29,
+   "games": 12,
    "sites": 16,
-   "failed": 0
+   "failed": 16
   },
   "recaps": {
    "graded": 0,
@@ -77,10 +79,10 @@
   "games": 13,
   "projected_games": 109,
   "summaries": {
-   "llm": 1,
+   "llm": 0,
    "rule": 0,
    "kept": 0,
-   "cached": 12
+   "cached": 13
   },
   "luck": {
    "turnover_adjusted": true,
