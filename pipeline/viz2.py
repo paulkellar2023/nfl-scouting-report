@@ -291,7 +291,9 @@ def tree_card(T, a, b, M, game, name, img):
     p0 = next(x for x in teams if x["team"] == top)["players"][0]
     o = b if top == a else a
     t1 = f"{p0['name']} gets {round(100 * p0['share'])}% of {poss(M[top]['label'])} targets, {p0['adot']:.1f} yards downfield on average."
-    t2 = f"{poss(M[o]['label'])} top target gets {round(100 * conc[o])}%."
+    p1 = next(x for x in teams if x["team"] == o)["players"][0]
+    t2 = (f"{M[o]['label']} leans on {p1['name']} just as much: {round(100 * p1['share'])}%." if conc[top] - conc[o] < 0.03 else
+          f"{poss(M[o]['label'])} top target, {p1['name']}, gets {round(100 * p1['share'])}%.")
     return _card(f"tree:{top}", "tree", "player", top, 0.6 + 2 * abs(conc[a] - conc[b]), t1, t2,
                  f"Top 5 targets on each team: height = average depth of target, size = share of targets, color = EPA per target, {game['span']}.",
                  {"type": "tree", "teams": teams},

@@ -32,7 +32,7 @@ The full method for readers is in `site/methods.html`. This file covers setup an
 
 ## Workflows
 
-- **weekly-build** (`.github/workflows/weekly.yml`): Thursday, Saturday and Sunday mornings (cron is UTC). Builds the next unplayed week, projected weeks, bracket, league table, track record, recaps, feeds and link previews, then commits `site/` and `model/` and deploys. Manual inputs:
+- **weekly-build** (`.github/workflows/weekly.yml`): Wednesday 2 PM ET (early build, no email), Thursday 2 PM ET (report and newsletter), then refreshes about 2 hours before the Thursday night, Sunday 1 PM, Sunday 4 PM, Sunday night and Monday night kickoffs (cron is UTC, set for Eastern Standard Time; see the comment in the file for daylight time). Only the Thursday 2 PM run sends email (`SEND_EMAIL`), or a manual run with `send_email` checked. Builds the next unplayed week, projected weeks, bracket, league table, track record, recaps, feeds and link previews, then commits `site/` and `model/` and deploys. Manual inputs:
   - `week`: build one week (blank = next unplayed week).
   - `backfill_weeks`: build past weeks first, for example `3-9`. Each uses only data from before that week. Weeks that already have a live report are skipped.
   - `refresh_started`: rebuild games that already kicked off (testing only).
@@ -43,7 +43,7 @@ The full method for readers is in `site/methods.html`. This file covers setup an
 
 ## Email
 
-The Thursday build sends one digest of every matchup to all subscribers (the Saturday and Sunday runs skip it: a marker file `email_sent.json` in the week folder blocks repeats).
+The Thursday 2 PM ET build sends one digest to all subscribers, in sections with a jump list at the top: at a glance (the week board's model-vs-market cards, most at stake, surest pick, coin flip), last week's report card, the game of the week with one chart per tab, upset alert, chart of the week, fantasy start or sit, the playoff seeds table, one bubble team's season-outcome chart, and one line per other game. Chart images are screenshots of the built site (Playwright), uploaded to Buttondown; if that fails the email goes out without them. The email is HTML in the site's colors and fonts. It (the Saturday and Sunday runs skip it: a marker file `email_sent.json` in the week folder blocks repeats).
 
 - `EMAIL_MODE = "send"` sends right away. `"draft"` only creates drafts in Buttondown for you to review and send.
 - `EMAIL_PER_TEAM = True` also sends one email per team to subscribers tagged with that team. This needs Buttondown's paid tagging add-on. With `False`, readers who want one team use its RSS feed.

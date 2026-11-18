@@ -642,7 +642,8 @@ def main():
         nl, nh = assets.download(site, M, pctx["heads"], pctx["need_heads"])
         if nl < len(M):
             health.warn(f"logos: {nl}/{len(M)} downloaded")
-        notify.send_week(wdir, M, [b["id"] for b in board], week)
+        if os.environ.get("SEND_EMAIL") == "1":  # only the Thursday 2 PM run (or a manual run that asks for it)
+            notify.send_week(wdir, M, [b["id"] for b in board], week)
     log.info("wrote %d games to %s", len(board), wdir)
     health.info("games", len(board))
     health.info("projected_games", n_proj)

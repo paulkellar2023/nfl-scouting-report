@@ -2,10 +2,15 @@ name: weekly-build
 
 on:
   schedule:
-    # GitHub cron is UTC. Add 1 hour to the ET times below during daylight time (Sep-Oct).
-    - cron: "37 13 * * 4"   # Thu 8:37 AM ET: scouting report, Thursday line snapshot, model (TNF statuses final)
-    - cron: "37 14 * * 6"   # Sat 9:37 AM ET: model refresh with Friday final statuses (Sun games, Sat games)
-    - cron: "37 14 * * 0"   # Sun 9:37 AM ET: model refresh before Sunday games (MNF statuses final Sat)
+    # GitHub cron is UTC. These are set for Eastern Standard Time (Nov-Mar): ET = UTC-5.
+    # During daylight time (Sep-Oct) subtract 1 hour from each UTC hour to keep the same ET times.
+    - cron: "3 19 * * 3"    # Wed 2:03 PM ET: early build, no email (covers Thanksgiving and other early-Thursday kickoffs)
+    - cron: "3 19 * * 4"    # Thu 2:03 PM ET: weekly report + newsletter (the only run that sends email)
+    - cron: "7 23 * * 4"    # Thu 6:07 PM ET: refresh about 2 hours before Thursday Night Football
+    - cron: "53 15 * * 0"   # Sun 10:53 AM ET: refresh about 2 hours before the 1 PM games
+    - cron: "23 19 * * 0"   # Sun 2:23 PM ET: refresh about 2 hours before the 4:05/4:25 PM games
+    - cron: "17 23 * * 0"   # Sun 6:17 PM ET: refresh about 2 hours before Sunday Night Football
+    - cron: "7 23 * * 1"    # Mon 6:07 PM ET: refresh about 2 hours before Monday Night Football
   workflow_dispatch:
     inputs:
       week:
@@ -17,6 +22,10 @@ on:
         default: false
       refresh_started:
         description: "Rebuild games that already kicked off (testing only)"
+        type: boolean
+        default: false
+      send_email:
+        description: "Send the newsletter from this run (only if this week's has not been sent)"
         type: boolean
         default: false
       backfill_weeks:
@@ -45,10 +54,12 @@ jobs:
           python-version: "3.12"
           cache: pip
       - run: pip install -r requirements.txt
+      - run: python -m playwright install --with-deps chromium  # email chart images
       - name: Build report
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           BUTTONDOWN_API_KEY: ${{ secrets.BUTTONDOWN_API_KEY }}
+          SEND_EMAIL: ${{ (github.event.schedule == '3 19 * * 4' || inputs.send_email) && '1' || '0' }}
         run: |
           ARGS=""
           if [ -n "${{ inputs.week }}" ]; then ARGS="$ARGS --week ${{ inputs.week }}"; fi

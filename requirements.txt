@@ -8,3 +8,4 @@ requests
 anthropic
 pillow
 pyreadr
+playwright
