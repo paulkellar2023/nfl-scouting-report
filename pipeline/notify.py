@@ -306,7 +306,8 @@ def _digest_body(docs, week, teams, bracket=None, league=None, imgs=None, record
     if rest:
         P = []
         for d in rest:
-            hook = (d.get("tease") or [None])[0] or ""
+            # The LLM summary when there is one; the rule-based summary is too long here, so its one-line teaser instead.
+            hook = d["summary"] if d.get("summary_src") == "llm" and d.get("summary") else (d.get("tease") or [None])[0] or ""
             links = f"[Preview]({_game(d)}) · [Model]({_game(d, 'model')}) · [Fantasy]({_game(d, 'fantasy')})"
             P.append(f'<div style="border-bottom:1px solid {LINE};padding:10px 0">'
                      f'{_matchup(teams, d)}'
