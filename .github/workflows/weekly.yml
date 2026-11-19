@@ -58,11 +58,20 @@ jobs:
           cache: pip
       - run: pip install -r requirements.txt
       - run: python -m playwright install --with-deps chromium  # email chart images
+      - name: Decide whether this run sends the newsletter
+        # Any scheduled run that starts on a Thursday (Eastern time) sends, even if GitHub starts it late.
+        # The weekly marker (email_sent.json) still stops a second send in the same week.
+        run: |
+          d=$(TZ=America/New_York date +%u)
+          if [ "${{ inputs.send_email }}" = "true" ]; then s=1
+          elif [ "${{ github.event_name }}" = "schedule" ] && [ "$d" = "4" ]; then s=1
+          else s=0; fi
+          echo "SEND_EMAIL=$s" >> "$GITHUB_ENV"
+          echo "SEND_EMAIL=$s (event: ${{ github.event_name }}, Eastern weekday: $d, 4 = Thursday)"
       - name: Build report
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           BUTTONDOWN_API_KEY: ${{ secrets.BUTTONDOWN_API_KEY }}
-          SEND_EMAIL: ${{ (github.event.schedule == '3 19 * * 4' || inputs.send_email) && '1' || '0' }}
           EMAIL_TEST: ${{ inputs.email_test && '1' || '0' }}
           EMAIL_TEST_TO: ${{ secrets.EMAIL_TEST_TO }}
         run: |
