@@ -171,9 +171,11 @@ class Fantasy(Cards):
         own, t = max(pr, key=lambda x: _z(tab, x[0]))
         v, n, r = float(tab.loc[own, "value"]), int(tab["value"].notna().sum()), _rank(tab, own)
         nm = self._name(own)
-        l1 = f"{nm} has a {v:.2f} WOPR, {ordinal(r)} of {n}." if r > 1 else f"No one has a bigger role than {nm} (WOPR {v:.2f})."
+        l1 = (f"{nm} has a {v:.2f} weighted opportunity rating, {ordinal(r)} of {n}." if r > 1 else
+              f"No one has a bigger role than {nm}: a {v:.2f} weighted opportunity rating.")
         l2 = f"He gets {round(100 * tab.loc[own, 'ts'])}% of targets and {round(100 * tab.loc[own, 'ash'])}% of air yards."
         return self._card(f"wopr:{own}", t, max(_z(tab, own), 0) * 0.9 + (0.2 if r <= 5 else 0), l1, l2,
+                          f"Weighted opportunity rating (WOPR) blends a player's share of team targets and share of team air yards. "
                           f"Every receiver with 4+ games, {self.game['span']}.",
                           {"type": "pstrip", "pts": [self._pt(p, p in {x for x, _ in pr}, v=val) for p, val in tab["value"].dropna().items()],
                            "fmt": "num1", "axis": "WEIGHTED OPPORTUNITY RATING (WOPR)", "avg": _r(float(tab["value"].mean()))},

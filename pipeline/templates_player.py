@@ -276,7 +276,7 @@ class Cards:
         wt = self.T.get("wopr")
         wt = wt[wt.index.isin(sh.index)] if wt is not None else None  # rank among the same 30+ target receivers
         if wt is not None and own in wt.index:
-            l2 = (f"His WOPR ({wt.loc[own, 'value']:.2f}) ranks {ordinal(_rank(wt, own))} of {int(wt['value'].notna().sum())}. "
+            l2 = (f"His weighted opportunity rating ({wt.loc[own, 'value']:.2f}, from target and air-yard share) ranks {ordinal(_rank(wt, own))} of {int(wt['value'].notna().sum())}. "
                   + l2)
         return self._card(f"wr_share:{own}", ot, float(z.get(own, 0)), l1, l2,
                           f"Every receiver with 30+ targets, {self.game['span']}.",
