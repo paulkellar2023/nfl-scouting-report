@@ -646,7 +646,8 @@ def main():
         if os.environ.get("EMAIL_TEST") == "1" and not test_to:
             health.warn("email test asked for, but the EMAIL_TEST_TO secret is not set")
         if test_to or os.environ.get("SEND_EMAIL") == "1":  # Thursday 2 PM run, a manual send, or a test draft
-            notify.send_week(wdir, M, [b["id"] for b in board], week, test_to=test_to)
+            notify.send_week(wdir, M, [b["id"] for b in board], week, test_to=test_to,
+                             force=os.environ.get("FORCE_SEND") == "1")
     log.info("wrote %d games to %s", len(board), wdir)
     health.info("games", len(board))
     health.info("projected_games", n_proj)

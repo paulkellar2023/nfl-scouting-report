@@ -333,7 +333,7 @@ def _digest_body(docs, week, teams, bracket=None, league=None, imgs=None, record
     return _wrap(P)
 
 
-def send_week(wdir, teams, ordered_ids, week, test_to=None):
+def send_week(wdir, teams, ordered_ids, week, test_to=None, force=False):
     """test_to: an address. Then only the digest is made, as a Buttondown draft sent to that address alone;
     no subscriber gets it and the week's send marker is not written (or checked)."""
     key = os.environ.get("BUTTONDOWN_API_KEY")  # GitHub Actions repository secret
@@ -341,7 +341,7 @@ def send_week(wdir, teams, ordered_ids, week, test_to=None):
         log.info("email: BUTTONDOWN_API_KEY not set, skipping")
         return
     marker = Path(wdir) / "email_sent.json"
-    if marker.exists() and not test_to:
+    if marker.exists() and not test_to and not force:  # force: send again even though this week was sent
         log.info("email: week %s already sent (%s), skipping", week, marker)
         return
     import requests
