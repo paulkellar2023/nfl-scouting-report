@@ -1,7 +1,9 @@
 {
- "status": "ok",
- "checked": "2026-11-19T22:46Z",
- "warnings": [],
+ "status": "warn",
+ "checked": "2026-11-19T23:13Z",
+ "warnings": [
+  "weather: 16 of 16 forecast requests failed. First error: HTTPError: 429 Client Error: Too Many Requests for url: https://api.open-meteo.com/v1/forecast?latitude=42.774&longitude=-78.787&timezone=UTC&forecast_days=16&hourly=tempe {\"error\":true,\"reason\":\"Daily API request limit exceeded. Please try again tomorrow.\"}"
+ ],
  "errors": [],
  "info": {
   "week": 11,
@@ -59,28 +61,22 @@
    "elo_teams": 35
   },
   "weather": {
-   "games": 30,
+   "games": 13,
    "sites": 16,
-   "failed": 0
+   "failed": 16
   },
   "recaps": {
    "graded": 0,
    "published": 14,
    "walk": 149
   },
-  "email_images": 9,
-  "email": {
-   "created": 1,
-   "total": 1,
-   "status": "draft"
-  },
   "games": 13,
   "projected_games": 109,
   "summaries": {
-   "llm": 1,
+   "llm": 2,
    "rule": 0,
    "kept": 0,
-   "cached": 12
+   "cached": 11
   },
   "luck": {
    "turnover_adjusted": true,
