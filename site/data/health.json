@@ -1,8 +1,8 @@
 {
  "status": "warn",
- "checked": "2026-11-19T23:13Z",
+ "checked": "2026-11-19T23:23Z",
  "warnings": [
-  "weather: 16 of 16 forecast requests failed. First error: HTTPError: 429 Client Error: Too Many Requests for url: https://api.open-meteo.com/v1/forecast?latitude=42.774&longitude=-78.787&timezone=UTC&forecast_days=16&hourly=tempe {\"error\":true,\"reason\":\"Daily API request limit exceeded. Please try again tomorrow.\"}"
+  "weather: 1 of 16 forecast requests failed. First error: ReadTimeout: HTTPSConnectionPool(host='api.open-meteo.com', port=443): Read timed out. (read timeout=30)"
  ],
  "errors": [],
  "info": {
@@ -61,9 +61,9 @@
    "elo_teams": 35
   },
   "weather": {
-   "games": 13,
+   "games": 28,
    "sites": 16,
-   "failed": 16
+   "failed": 1
   },
   "recaps": {
    "graded": 0,
@@ -73,10 +73,10 @@
   "games": 13,
   "projected_games": 109,
   "summaries": {
-   "llm": 2,
+   "llm": 6,
    "rule": 0,
    "kept": 0,
-   "cached": 11
+   "cached": 7
   },
   "luck": {
    "turnover_adjusted": true,
