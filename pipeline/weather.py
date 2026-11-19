@@ -54,6 +54,16 @@ def _kickoff_utc(g):
         return None
 
 
+def _get(requests, params):
+    """Open-Meteo sometimes times out: allow 30 s and try twice."""
+    for k in range(2):
+        try:
+            return requests.get(API, timeout=30, params=params)
+        except requests.Timeout:
+            if k:
+                raise
+
+
 def forecasts(games, now):
     """games: schedule rows. Returns {game_id: {"indoor": True} | {"t", "pp", "wind", "kind", "src"}}."""
     import requests
@@ -71,7 +81,7 @@ def forecasts(games, now):
     fails, first = 0, None
     for (lat, lon), rows in want.items():
         try:
-            r = requests.get(API, timeout=15, params={
+            r = _get(requests, {
                 "latitude": lat, "longitude": lon, "timezone": "UTC", "forecast_days": 16,
                 "hourly": "temperature_2m,precipitation_probability,weather_code,wind_speed_10m",
                 "temperature_unit": "fahrenheit", "wind_speed_unit": "mph"})

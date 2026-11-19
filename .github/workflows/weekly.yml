@@ -4,13 +4,12 @@ on:
   schedule:
     # GitHub cron is UTC. These are set for Eastern Standard Time (Nov-Mar): ET = UTC-5.
     # During daylight time (Sep-Oct) subtract 1 hour from each UTC hour to keep the same ET times.
-    - cron: "3 19 * * 3"    # Wed 2:03 PM ET: early build, no email (covers Thanksgiving and other early-Thursday kickoffs)
+    # Minute 3 instead of :00 because GitHub delays or drops more runs on the hour.
     - cron: "3 19 * * 4"    # Thu 2:03 PM ET: weekly report + newsletter (the only run that sends email)
-    - cron: "7 23 * * 4"    # Thu 6:07 PM ET: refresh about 2 hours before Thursday Night Football
-    - cron: "53 15 * * 0"   # Sun 10:53 AM ET: refresh about 2 hours before the 1 PM games
-    - cron: "23 19 * * 0"   # Sun 2:23 PM ET: refresh about 2 hours before the 4:05/4:25 PM games
-    - cron: "17 23 * * 0"   # Sun 6:17 PM ET: refresh about 2 hours before Sunday Night Football
-    - cron: "7 23 * * 1"    # Mon 6:07 PM ET: refresh about 2 hours before Monday Night Football
+    - cron: "3 16 * * 0"    # Sun 11:03 AM ET: data refresh, no email
+    - cron: "3 20 * * 0"    # Sun 3:03 PM ET: data refresh, no email
+    - cron: "3 0 * * 1"     # Sun 7:03 PM ET (00:03 UTC Monday): data refresh, no email
+    - cron: "3 23 * * 1"    # Mon 6:03 PM ET: data refresh, no email
   workflow_dispatch:
     inputs:
       week:
