@@ -1,6 +1,6 @@
 {
  "status": "ok",
- "checked": "2026-11-19T22:28Z",
+ "checked": "2026-11-19T22:46Z",
  "warnings": [],
  "errors": [],
  "info": {
@@ -72,15 +72,15 @@
   "email": {
    "created": 1,
    "total": 1,
-   "status": "about_to_send"
+   "status": "draft"
   },
   "games": 13,
   "projected_games": 109,
   "summaries": {
-   "llm": 11,
+   "llm": 1,
    "rule": 0,
    "kept": 0,
-   "cached": 2
+   "cached": 12
   },
   "luck": {
    "turnover_adjusted": true,
