@@ -1,9 +1,7 @@
 {
- "status": "warn",
- "checked": "2026-11-19T23:23Z",
- "warnings": [
-  "weather: 1 of 16 forecast requests failed. First error: ReadTimeout: HTTPSConnectionPool(host='api.open-meteo.com', port=443): Read timed out. (read timeout=30)"
- ],
+ "status": "ok",
+ "checked": "2026-11-20T01:06Z",
+ "warnings": [],
  "errors": [],
  "info": {
   "week": 11,
@@ -61,22 +59,28 @@
    "elo_teams": 35
   },
   "weather": {
-   "games": 28,
+   "games": 30,
    "sites": 16,
-   "failed": 1
+   "failed": 0
   },
   "recaps": {
    "graded": 0,
    "published": 14,
    "walk": 149
   },
+  "email_images": 9,
+  "email": {
+   "created": 1,
+   "total": 1,
+   "status": "about_to_send"
+  },
   "games": 13,
   "projected_games": 109,
   "summaries": {
-   "llm": 6,
+   "llm": 3,
    "rule": 0,
    "kept": 0,
-   "cached": 7
+   "cached": 10
   },
   "luck": {
    "turnover_adjusted": true,
