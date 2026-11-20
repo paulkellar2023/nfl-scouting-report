@@ -6,7 +6,7 @@ on:
     # During daylight time (Sep-Oct) subtract 1 hour from each UTC hour to keep the same ET times.
     # Minute 3 instead of :00 because GitHub delays or drops more runs on the hour.
     - cron: "3 0 * * 4"     # Wed 7:03 PM ET (00:03 UTC Thursday): site update, no email
-    - cron: "33 17 * * 4"   # Thu 12:33 PM ET: weekly report + newsletter (the only run that sends email)
+    - cron: "3 17 * * 4"    # Thu 12:03 PM ET: weekly report + newsletter (the only run that sends email)
     - cron: "3 16 * * 0"    # Sun 11:03 AM ET: data refresh, no email
     - cron: "3 20 * * 0"    # Sun 3:03 PM ET: data refresh, no email
     - cron: "3 0 * * 1"     # Sun 7:03 PM ET (00:03 UTC Monday): data refresh, no email
@@ -64,13 +64,13 @@ jobs:
       - run: pip install -r requirements.txt
       - run: python -m playwright install --with-deps chromium  # email chart images
       - name: Decide whether this run sends the newsletter
-        # Only the Thursday 12:33 PM schedule sends (even if GitHub starts it late, as long as it is still Thursday ET).
+        # Only the Thursday 12:03 PM schedule sends (even if GitHub starts it late, as long as it is still Thursday ET).
         # The Wednesday 7 PM run is excluded by name, so a late start past midnight cannot send early.
         # The weekly marker (email_sent.json) still stops a second send in the same week.
         run: |
           d=$(TZ=America/New_York date +%u)
           if [ "${{ inputs.send_email }}" = "true" ]; then s=1
-          elif [ "${{ github.event.schedule }}" = "33 17 * * 4" ] && [ "$d" = "4" ]; then s=1
+          elif [ "${{ github.event.schedule }}" = "3 17 * * 4" ] && [ "$d" = "4" ]; then s=1
           else s=0; fi
           echo "SEND_EMAIL=$s" >> "$GITHUB_ENV"
           echo "SEND_EMAIL=$s (event: ${{ github.event_name }}, Eastern weekday: $d, 4 = Thursday)"
