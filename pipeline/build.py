@@ -325,7 +325,12 @@ def main():
             prev_tile = {t["id"]: t for t in json.loads((wdir / "games.json").read_text())["games"]}
         except (OSError, ValueError, KeyError):
             pass
+        sent = wdir / "email_sent.json"
+        keep = sent.read_text() if sent.exists() else None  # the week's send marker must survive the rebuild
         shutil.rmtree(wdir)
+        if keep is not None:
+            wdir.mkdir(parents=True, exist_ok=True)
+            sent.write_text(keep)
     now = dt.datetime.now(dt.timezone.utc)
     WX = {} if synth_run else weather.forecasts(reg[reg["season"] == args.season], now)  # kickoff forecasts, next 15 days
     built = now.strftime("%Y-%m-%dT%H:%MZ")
