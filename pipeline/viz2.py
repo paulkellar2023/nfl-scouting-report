@@ -271,7 +271,7 @@ def quarters_card(T, a, b, M, game):
                  "Offensive touchdowns and field goals by the quarter the drive ended · overtime counted as 4th")
 
 
-def tree_card(T, a, b, M, game, name, img):
+def tree_card(T, a, b, M, game, name, img, cur=None):
     if "tree" not in T:
         return None
     tr = T["tree"]
@@ -279,7 +279,8 @@ def tree_card(T, a, b, M, game, name, img):
     for t in (a, b):
         if t not in tr.index.get_level_values(0):
             return None
-        g = tr.loc[t].sort_values("n", ascending=False).head(5)
+        g = tr.loc[t]
+        g = g[[(cur or {}).get(p, t) == t for p in g.index]].sort_values("n", ascending=False).head(5)  # skip traded players
         g = g[g["n"] >= 10]
         if len(g) < 3:
             return None

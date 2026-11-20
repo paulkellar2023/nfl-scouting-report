@@ -99,8 +99,34 @@ def team_meta(teams_df, active):
     return out
 
 
+def current_teams(rosters):
+    """{gsis_id or pfr_id: team} from the latest roster, so traded players show with their new team."""
+    if rosters is None or not len(rosters) or "team" not in rosters.columns:
+        return {}
+    r = rosters.copy()
+    if "week" in r.columns:
+        r = r.sort_values("week")
+    cur = {}
+    for col in ("gsis_id", "pfr_id"):
+        if col in r.columns:
+            x = r.dropna(subset=[col]).drop_duplicates(col, keep="last")
+            cur.update({k: v for k, v in zip(x[col], x["team"]) if isinstance(v, str) and v})
+    return cur
+
+
+def retag(df, cur):
+    """Replace a player table's team column (index = player id) with the current roster team."""
+    if df is not None and len(df) and "team" in df.columns and cur:
+        df["team"] = df.index.to_series().map(cur).fillna(df["team"])
+    return df
+
+
 def player_context(plays, rosters, sched, target_week):
     names, heads = {}, {}
+    cur = current_teams(rosters)
+
+    def here(df, col):  # drop plays of players who have since left that team
+        return df[df[col].map(cur).fillna(df["posteam"]) == df["posteam"]] if cur else df
     for c_id, c_nm in [("passer_player_id", "passer_player_name"), ("rusher_player_id", "rusher_player_name"),
                        ("receiver_player_id", "receiver_player_name")]:
         s = plays[[c_id, c_nm]].dropna().drop_duplicates(c_id)
@@ -114,7 +140,7 @@ def player_context(plays, rosters, sched, target_week):
 
     last_wk = plays.groupby("posteam")["week"].max()
     recent = plays[plays["week"] == plays["posteam"].map(last_wk)]
-    qb_last = recent[recent["dropback"] & recent["qb_id"].notna()].groupby(["posteam", "qb_id"]).size()
+    qb_last = here(recent[recent["dropback"] & recent["qb_id"].notna()], "qb_id").groupby(["posteam", "qb_id"]).size()
     starters = qb_last.reset_index().sort_values(0).groupby("posteam").tail(1).set_index("posteam")["qb_id"].to_dict()
     tw = sched[(sched["week"] == target_week)]
     for col_t, col_q in [("home_team", "home_qb_id"), ("away_team", "away_qb_id")]:
@@ -124,11 +150,11 @@ def player_context(plays, rosters, sched, target_week):
                     starters[t] = q
 
     w3 = plays[plays["week"] >= plays["posteam"].map(last_wk) - 2]
-    rb = w3[w3["designed_run"] & w3["rusher_player_id"].notna()]
+    rb = here(w3[w3["designed_run"] & w3["rusher_player_id"].notna()], "rusher_player_id")
     rb = rb[~rb["rusher_player_id"].isin(set(starters.values()))]
     lead_rb = rb.groupby(["posteam", "rusher_player_id"])["w"].sum().reset_index().sort_values("w") \
         .groupby("posteam").tail(1).set_index("posteam")["rusher_player_id"].to_dict()
-    tg = plays[plays["attempt"] & plays["receiver_player_id"].notna()]
+    tg = here(plays[plays["attempt"] & plays["receiver_player_id"].notna()], "receiver_player_id")
     tg = tg.groupby(["posteam", "receiver_player_id"])["w"].sum().reset_index().sort_values("w", ascending=False)
     top_tgt = tg.groupby("posteam").head(2).groupby("posteam")["receiver_player_id"].apply(list).to_dict()
     p_team = pd.concat([
@@ -136,7 +162,10 @@ def player_context(plays, rosters, sched, target_week):
         plays[["rusher_player_id", "posteam", "week"]].rename(columns={"rusher_player_id": "pid"}),
         plays[["receiver_player_id", "posteam", "week"]].rename(columns={"receiver_player_id": "pid"}),
     ]).dropna().sort_values("week").drop_duplicates("pid", keep="last").set_index("pid")["posteam"].to_dict()
-    return {"names": names, "heads": heads, "qb": starters, "rb": lead_rb, "tgt": top_tgt, "team": p_team}
+    moved = {k: (v, cur[k]) for k, v in p_team.items() if cur.get(k, v) != v}
+    p_team.update(cur)
+    return {"names": names, "heads": heads, "qb": starters, "rb": lead_rb, "tgt": top_tgt, "team": p_team, "cur": cur,
+            "moved": moved}
 
 
 def short_name(full):

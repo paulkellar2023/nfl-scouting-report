@@ -266,6 +266,11 @@ def main():
         pctx["names"].setdefault(pid, nm)
     for pid, t in X["teams"].items():
         pctx["team"].setdefault(pid, t)
+    for k in ("ff", "wopr"):
+        context.retag(X.get(k), pctx["cur"])
+    if not pctx["cur"]:
+        health.warn("rosters: no current roster, so player teams come from play-by-play. Trades since a player's last game are missed.")
+    health.info("roster_moves", {pctx["names"].get(k, k): f"{a}->{b}" for k, (a, b) in pctx["moved"].items()})
 
     tpls = templates_team.build(plays, flags, pctx["qb"], active, X)
     shells = templates_team.shell_tables(plays) if flags["coverage"] else None
@@ -280,7 +285,7 @@ def main():
     health.info("visuals", sorted(k for k in VZ if not k.endswith("_lg")))
     snap_t = fantasy.snap_table((hist or {}).get("snaps"), args.season, week)
     if snap_t is not None:
-        ptabs["snap"] = snap_t
+        ptabs["snap"] = context.retag(snap_t, pctx["cur"])
     E = elo.Elo((hist or {}).get("sched") if (hist or {}).get("sched") is not None else raw["sched"], args.season, week)
     health.info("phase4", {"special": sorted(SP), "snaps": snap_t is not None, "elo_teams": len(E.r)})
 
@@ -416,7 +421,7 @@ def main():
         extra_p = [viz.receiver_card(VZ, a_, h_, M, game, pctx, pc._name, pc._img),
                    viz.pressure_card(VZ, a_, h_, M, game, pctx, pc._name, pc._img, ptabs.get("qb_ttt"),
                                      tpp["pressure"].deff if "pressure" in tpp else None),
-                   viz2.tree_card(V2, a_, h_, M, game, pc._name, pc._img)]
+                   viz2.tree_card(V2, a_, h_, M, game, pc._name, pc._img, pctx["cur"])]
         pool_p = pc.all(a_, h_) + [c for c in extra_p if c]
         vary(pool_p)
         player_cards, player_n = templates_player.select(pool_p, MIN_PLAYER_CARDS, MAX_PLAYER_CARDS, cap=CARD_CAP)
