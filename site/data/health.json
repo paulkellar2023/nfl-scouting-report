@@ -1,6 +1,6 @@
 {
  "status": "ok",
- "checked": "2026-11-20T01:06Z",
+ "checked": "2026-11-22T21:44Z",
  "warnings": [],
  "errors": [],
  "info": {
@@ -33,8 +33,19 @@
    "wr_cush",
    "wr_sep"
   ],
+  "roster_moves": {
+   "Jimmy Horn Jr.": "CAR->CLE",
+   "Cooper Rush": "ATL->TB",
+   "Andy Dalton": "PHI->ATL",
+   "Jared Wayne": "HOU->MIA",
+   "Ryan Miller": "MIA->NE",
+   "Odell Beckham Jr.": "NYG->MIN",
+   "Marquez Valdes-Scantling": "LAC->PIT",
+   "Hayden Rucci": "LAC->PHI",
+   "Kendre Miller": "NO->DAL"
+  },
   "nfl4th": {
-   "plays": 2308
+   "plays": 2321
   },
   "visuals": [
    "att",
@@ -59,8 +70,8 @@
    "elo_teams": 35
   },
   "weather": {
-   "games": 30,
-   "sites": 16,
+   "games": 31,
+   "sites": 15,
    "failed": 0
   },
   "recaps": {
@@ -68,19 +79,13 @@
    "published": 14,
    "walk": 149
   },
-  "email_images": 9,
-  "email": {
-   "created": 1,
-   "total": 1,
-   "status": "about_to_send"
-  },
   "games": 13,
   "projected_games": 109,
   "summaries": {
-   "llm": 3,
+   "llm": 2,
    "rule": 0,
-   "kept": 0,
-   "cached": 10
+   "kept": 11,
+   "cached": 0
   },
   "luck": {
    "turnover_adjusted": true,
