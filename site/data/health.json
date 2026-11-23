@@ -1,6 +1,6 @@
 {
  "status": "ok",
- "checked": "2026-11-22T21:44Z",
+ "checked": "2026-11-23T00:47Z",
  "warnings": [],
  "errors": [],
  "info": {
@@ -40,8 +40,8 @@
    "Jared Wayne": "HOU->MIA",
    "Ryan Miller": "MIA->NE",
    "Odell Beckham Jr.": "NYG->MIN",
-   "Marquez Valdes-Scantling": "LAC->PIT",
    "Hayden Rucci": "LAC->PHI",
+   "Marquez Valdes-Scantling": "LAC->PIT",
    "Kendre Miller": "NO->DAL"
   },
   "nfl4th": {
@@ -82,10 +82,10 @@
   "games": 13,
   "projected_games": 109,
   "summaries": {
-   "llm": 2,
+   "llm": 1,
    "rule": 0,
    "kept": 11,
-   "cached": 0
+   "cached": 1
   },
   "luck": {
    "turnover_adjusted": true,
