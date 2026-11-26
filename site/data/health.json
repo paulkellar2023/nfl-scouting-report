@@ -1,6 +1,6 @@
 {
  "status": "ok",
- "checked": "2026-11-24T07:00Z",
+ "checked": "2026-11-26T08:07Z",
  "warnings": [],
  "errors": [],
  "info": {
@@ -45,7 +45,7 @@
    "Kendre Miller": "NO->DAL"
   },
   "nfl4th": {
-   "plays": 2478
+   "plays": 2494
   },
   "visuals": [
    "att",
@@ -75,16 +75,16 @@
    "failed": 0
   },
   "recaps": {
-   "graded": 13,
+   "graded": 0,
    "published": 27,
    "walk": 162
   },
   "games": 16,
   "projected_games": 93,
   "summaries": {
-   "llm": 16,
+   "llm": 15,
    "rule": 0,
-   "kept": 0,
+   "kept": 1,
    "cached": 0
   },
   "luck": {
